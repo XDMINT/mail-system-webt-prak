@@ -22,18 +22,28 @@ services:
       dockerfile: backend/Dockerfile
     restart: always
     environment:
-      DB_URL: jdbc:postgresql://database:5432/${DB_NAME}
+      # Erzwingt den PostgreSQL-Treiber und die URL
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DB_DDL_AUTO:-update}
+
+      # Falls Ihr Java-Code doch auf die alten Variablen-Namen hört, lassen wir sie zur Sicherheit parallel drin:
       DB_DRIVER: org.postgresql.Driver
+      DB_URL: jdbc:postgresql://database:5432/${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_DDL_AUTO: ${DB_DDL_AUTO:-update}
+
+      # Ihre restlichen App-Variablen
       APP_NAME: ${APP_NAME:-mail-project}
       APP_SECRET: ${APP_SECRET}
       APP_JWT_EXPIRES: ${APP_JWT_EXPIRES:-3600}
       APP_JWT_SECRET: ${APP_JWT_SECRET}
       FILE_UPLOAD_DIR: uploads
     ports:
-      - "8080:8080"
+      - "8081:8081"
     depends_on:
       database:
         condition: service_healthy
