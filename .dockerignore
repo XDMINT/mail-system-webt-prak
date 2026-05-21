@@ -1,0 +1,14 @@
+.git
+.idea
+.DS_Store
+build/
+mailclient/
+frontend/.angular/
+frontend/build/
+frontend/dist/
+frontend/node_modules/
+backend/.gradle/
+backend/.kotlin/
+backend/build/
+backend/uploads/
+

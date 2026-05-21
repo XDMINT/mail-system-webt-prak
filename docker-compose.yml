@@ -1,0 +1,55 @@
+services:
+  database:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: always
+    environment:
+      DB_URL: jdbc:postgresql://database:5432/${DB_NAME}
+      DB_DRIVER: org.postgresql.Driver
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DDL_AUTO: ${DB_DDL_AUTO:-update}
+      APP_NAME: ${APP_NAME:-mail-project}
+      APP_SECRET: ${APP_SECRET}
+      APP_JWT_EXPIRES: ${APP_JWT_EXPIRES:-3600}
+      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      FILE_UPLOAD_DIR: uploads
+    ports:
+      - "8080:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - uploads:/mail-system/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  uploads:

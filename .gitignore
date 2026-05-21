@@ -1,0 +1,64 @@
+# IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Build tools
+.gradle/
+build/
+out/
+
+# Kotlin / Java
+*.class
+*.jar
+*.war
+*.ear
+*.dex
+
+# Gradle wrapper caches
+.gradle/
+gradle-app.setting
+.gradle-native/
+
+# Spring Boot
+spring.log
+logs/
+tmp/
+*.pid
+
+# Node / npm / yarn
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+
+# Angular / frontend
+dist/
+.angular/
+.angular/cache
+coverage/
+*.tgz
+
+# Environment files
+.env
+.env.*
+env.local
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
+coverage/
+*.class
+.idea_modules/
+
+uploads
