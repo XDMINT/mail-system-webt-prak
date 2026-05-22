@@ -9,6 +9,7 @@ import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.mail.javamail.MimeMessageHelper
 import org.springframework.stereotype.Service
 import java.nio.charset.StandardCharsets
+import org.slf4j.LoggerFactory
 
 
 @Service
@@ -18,8 +19,15 @@ class SMTPService(
     private val fileStorageService: FileStorageService,
     @Value("\${mail.from-address:\${spring.mail.username:}}") private val fromAddress: String,
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     fun sendEmail(mail: Mail): Boolean {
         return try {
+            if (fromAddress.isBlank()) {
+                logger.warn("SMTP send aborted: mail.from-address is empty")
+                return false
+            }
+
             val recipients = mail.id?.let { mailRecordService.getMailRecordByMailId(it) }.orEmpty()
             if (recipients.isEmpty()) {
                 return true
@@ -27,7 +35,7 @@ class SMTPService(
 
             val message = javaMailSender.createMimeMessage()
             val helper = MimeMessageHelper(message, true, StandardCharsets.UTF_8.name())
-            helper.setFrom(fromAddress.ifBlank { mail.sender?.email ?: "no-reply@thm.local" })
+            helper.setFrom(fromAddress)
 
             val toRecipients = recipients.filter { it.type == MailType.TO }.mapNotNull { it.user?.email }.distinct()
             val ccRecipients = recipients.filter { it.type == MailType.CC }.mapNotNull { it.user?.email }.distinct()
@@ -46,7 +54,8 @@ class SMTPService(
 
             javaMailSender.send(message)
             true
-        } catch (_: Exception) {
+        } catch (ex: Exception) {
+            logger.warn("SMTP send failed for mail {}", mail.id, ex)
             false
         }
     }
