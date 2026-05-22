@@ -2,8 +2,8 @@ package de.thm.mni.backend.mail
 
 import de.thm.mni.backend.attachment.dto.toDTO
 import de.thm.mni.backend.mail.dto.MailDTO
-import de.thm.mni.backend.mail.enums.MailType
 import de.thm.mni.backend.mail.enums.MailSource
+import de.thm.mni.backend.mail.enums.MailType
 import de.thm.mni.backend.mail_record.MailRecord
 import de.thm.mni.backend.mail_record.MailRecordService
 import de.thm.mni.backend.user.User
@@ -21,7 +21,9 @@ class MailMapper(private val mailRecordService: MailRecordService) {
             subject = mail.subject,
             content = mail.content,
             status = mail.status,
-            source = if (mail.sender!!.id == user.id) MailSource.INTERN else MailSource.EXTERN,
+            source = mail.source,
+            trackingCode = mail.trackingCode,
+            externalSenderEmail = mail.externalSenderEmail,
             to = records.filter { it.type == MailType.TO }.map { it.user!!.toDTO() },
             cc = records.filter { it.type == MailType.CC }.map { it.user!!.toDTO() },
             bcc = records.filter { it.type == MailType.BCC && (it.user!!.id == user.id || mail.sender!!.id == user.id) }.map { it.user!!.toDTO() },

@@ -19,6 +19,8 @@ export type Mail = {
   content: string;
   status: MailStatus;
   source: MailSource;
+  trackingCode?: string;
+  externalSenderEmail?: string;
   to: User[];
   cc: User[];
   bcc: User[];

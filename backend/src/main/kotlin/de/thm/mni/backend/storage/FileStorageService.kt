@@ -13,6 +13,10 @@ class FileStorageService(private val fileStorageRepository: FileStorageRepositor
         return fileStorageRepository.saveFile(file)
     }
 
+    fun saveFile(fileName: String, contentType: String?, content: ByteArray): AttachmentDTO {
+        return fileStorageRepository.saveFile(fileName, contentType, content)
+    }
+
     fun deleteFile(filename: String?) {
         if(filename == null){
             throw RuntimeException("Filename is null")

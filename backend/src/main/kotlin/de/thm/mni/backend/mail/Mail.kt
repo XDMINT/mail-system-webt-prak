@@ -1,6 +1,7 @@
 package de.thm.mni.backend.mail
 
 import de.thm.mni.backend.attachment.Attachment
+import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.user.User
 import jakarta.persistence.CascadeType
@@ -41,6 +42,19 @@ class Mail {
     @Column
     @Enumerated(EnumType.STRING)
     var status: MailStatus = MailStatus.DRAFT
+
+    @Column(name = "source")
+    @Enumerated(EnumType.STRING)
+    var source: MailSource = MailSource.INTERN
+
+    @Column(name = "tracking_code", unique = true)
+    var trackingCode: String? = null
+
+    @Column(name = "external_message_id", unique = true)
+    var externalMessageId: String? = null
+
+    @Column(name = "external_sender_email")
+    var externalSenderEmail: String? = null
 
     @OneToMany(mappedBy = "mail", cascade = [CascadeType.ALL], orphanRemoval = true)
     var attachments: MutableList<Attachment> = mutableListOf()

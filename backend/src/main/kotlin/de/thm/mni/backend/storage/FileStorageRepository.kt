@@ -12,7 +12,6 @@ import java.net.MalformedURLException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 
@@ -37,20 +36,32 @@ class FileStorageRepository(@Value("\${file.upload-dir}") private val uploadDir:
                 return null
             }
 
-            val originalFilename = file.originalFilename
+            return saveFile(file.originalFilename ?: "attachment", file.contentType, file.bytes)
+        } catch (e: IOException) {
+            throw RuntimeException("Failed to store file.", e)
+        }
+    }
 
-            val extension = originalFilename!!.substring(originalFilename.lastIndexOf("."))
-            val newFilename = UUID.randomUUID().toString() + extension
+    fun saveFile(fileName: String, contentType: String?, content: ByteArray): AttachmentDTO {
+        try {
+            val safeName = fileName.ifBlank { "attachment" }
+            val extension = safeName.substringAfterLast('.', "")
+            val newFilename = if (extension.isBlank()) {
+                UUID.randomUUID().toString()
+            } else {
+                "${UUID.randomUUID()}.$extension"
+            }
 
-            val destinationFile: Path? = this.rootLocation?.resolve(Paths.get(newFilename))
+            val destinationFile: Path = this.rootLocation?.resolve(Paths.get(newFilename))
                 ?.normalize()?.toAbsolutePath()
+                ?: throw RuntimeException("Could not resolve destination file!")
 
-            Files.copy(file.inputStream, destinationFile, StandardCopyOption.REPLACE_EXISTING)
+            Files.write(destinationFile, content)
 
             return AttachmentDTO(
-                size = file.size,
-                fileName = file.originalFilename,
-                mimeType = file.contentType,
+                size = content.size.toLong(),
+                fileName = safeName,
+                mimeType = contentType,
                 path = newFilename
             )
         } catch (e: IOException) {

@@ -1,5 +1,5 @@
 FROM caddy:2-alpine
-LABEL authors="timguenther"
+LABEL authors="hellenmyglas"
 
 COPY build/install/browser/ /srv/
 

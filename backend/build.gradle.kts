@@ -32,6 +32,7 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc:4.0.6")
+    implementation("org.springframework.boot:spring-boot-starter-mail:4.0.6")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.21")
     implementation("tools.jackson.module:jackson-module-kotlin:3.1.2")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test:4.0.6")

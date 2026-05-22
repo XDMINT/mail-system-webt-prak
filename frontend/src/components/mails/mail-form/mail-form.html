@@ -41,17 +41,6 @@
           <div class="flex flex-col gap-4">
             <div class="flex items-center gap-2">
               <label class="text-sm font-semibold text-slate-700 w-20">To</label>
-              <p-multiSelect
-                [options]="availableUsers()"
-                [(ngModel)]="selectedToUsers"
-                [ngModelOptions]="{ standalone: true }"
-                display="chip"
-                optionLabel="email"
-                optionValue="id"
-                placeholder="Select recipients"
-                [maxSelectedLabels]="6"
-                class="w-full"
-              ></p-multiSelect>
             </div>
 
             <div class="flex items-center gap-2">

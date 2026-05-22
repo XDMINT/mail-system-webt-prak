@@ -14,6 +14,8 @@ data class MailDTO(
     val content: String,
     val status: MailStatus,
     val source: MailSource,
+    val trackingCode: String?,
+    val externalSenderEmail: String?,
     val to: List<UserDTO>,
     val cc: List<UserDTO>,
     val bcc: List<UserDTO>,
