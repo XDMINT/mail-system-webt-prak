@@ -54,7 +54,8 @@ MAIL_IMAP_PORT=993
 MAIL_IMAP_USERNAME=your-thm-email@student.thm.de
 MAIL_IMAP_PASSWORD=your-thm-password
 MAIL_IMAP_FOLDER=INBOX
-MAIL_IMAP_POLL_INTERVAL_MS=300000
+MAIL_IMAP_POLL_INTERVAL_MS=5000
+MAIL_IMAP_RECENT_WINDOW_SIZE=50
 ```
 
 Do not commit `.env`. It is ignored by Git.
@@ -109,12 +110,14 @@ The backend polls the configured IMAP inbox.
 Behavior:
 
 1. The first successful sync imports all messages from the configured folder.
-2. Later syncs import unread messages only.
+2. Later syncs inspect the most recent messages from the configured folder.
 3. The IMAP folder is opened read-only, so read/unread state is not changed by the import.
 4. Messages are deduplicated by `Message-ID`.
 5. Imported external mails are assigned to all internal app users.
 6. External senders are stored as contacts with `externalContact=true`.
 7. Attachments are uploaded to SeaweedFS during import.
+
+`MAIL_IMAP_POLL_INTERVAL_MS` controls how often the backend checks the mailbox. `MAIL_IMAP_RECENT_WINDOW_SIZE` controls how many recent messages are checked after the initial import. The backend deduplicates by `Message-ID`, so already imported messages are skipped. This keeps replies importable even if they were already opened on another device.
 
 If `MAIL_IMAP_HOST`, `MAIL_IMAP_USERNAME`, or `MAIL_IMAP_PASSWORD` is empty, IMAP polling is disabled.
 
@@ -122,7 +125,7 @@ If `MAIL_IMAP_HOST`, `MAIL_IMAP_USERNAME`, or `MAIL_IMAP_PASSWORD` is empty, IMA
 
 SMTP is used for outbound mails. Configure `SPRING_MAIL_*`, `MAIL_FROM_ADDRESS`, and optionally `MAIL_REPLY_TO_ADDRESS` in `.env`.
 
-`MAIL_REPLY_TO_ADDRESS` should point to the mailbox that IMAP imports. If it is omitted, the backend falls back to `MAIL_IMAP_USERNAME`, then `MAIL_FROM_ADDRESS`, then `SPRING_MAIL_USERNAME`.
+`MAIL_REPLY_TO_ADDRESS` must be a complete email address and should point to the mailbox that IMAP imports, for example `jfdr91@mailserv.fh-giessen.de`. If it is omitted, the backend does not set a `Reply-To` header and replies go to the configured `From` address.
 
 ## Ticket Tracking
 

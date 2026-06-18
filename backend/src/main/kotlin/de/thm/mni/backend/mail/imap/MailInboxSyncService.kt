@@ -9,10 +9,8 @@ import jakarta.mail.Multipart
 import jakarta.mail.Part
 import jakarta.mail.Session
 import jakarta.mail.Store
-import jakarta.mail.Flags
 import jakarta.mail.internet.InternetAddress
 import jakarta.mail.internet.MimeUtility
-import jakarta.mail.search.FlagTerm
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
@@ -34,10 +32,11 @@ class MailInboxSyncService(
     @Value("\${mail.imap.username:}") private val username: String,
     @Value("\${mail.imap.password:}") private val password: String,
     @Value("\${mail.imap.folder:INBOX}") private val folderName: String,
+    @Value("\${mail.imap.recent-window-size:50}") private val recentWindowSize: Int,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    @Scheduled(fixedDelayString = "\${mail.imap.poll-interval-ms:300000}")
+    @Scheduled(fixedDelayString = "\${mail.imap.poll-interval-ms:5000}")
     fun synchronizeInbox() {
         if (host.isBlank() || username.isBlank() || password.isBlank()) {
             return
@@ -66,7 +65,7 @@ class MailInboxSyncService(
             val messages = if (isInitialImport) {
                 folder.messages
             } else {
-                folder.search(FlagTerm(Flags(Flags.Flag.SEEN), false))
+                getRecentMessages(folder)
             }
 
             var importedCount = 0
@@ -125,6 +124,17 @@ class MailInboxSyncService(
             } catch (_: Exception) {
             }
         }
+    }
+
+    private fun getRecentMessages(folder: Folder): Array<Message> {
+        val messageCount = folder.messageCount
+        if (messageCount <= 0) {
+            return emptyArray()
+        }
+
+        val windowSize = recentWindowSize.coerceAtLeast(1)
+        val start = maxOf(1, messageCount - windowSize + 1)
+        return folder.getMessages(start, messageCount)
     }
 
     private fun extractMessageId(message: Message): String {
