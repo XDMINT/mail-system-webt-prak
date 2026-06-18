@@ -1,0 +1,260 @@
+= Mail Server Application
+:toc:
+:toclevels: 3
+
+== Overview
+
+The Mail Server Application is a web-based email client that allows users to send, receive, and manage emails
+through a modern web interface.
+The application communicates with the THM Mail Server using the SMTP and IMAP protocols.
+The frontend is implemented with Angular, while the backend is built with Spring Boot and Kotlin.
+Email attachments are stored in SeaweedFS, and application data is persisted in PostgreSQL.
+Automated tests use an H2 in-memory database.
+
+== Features
+
+* User authentication
+* Sending emails via SMTP
+* Receiving and reading emails via IMAP
+* Inbox management
+* Uploading and downloading email attachments
+* Storage of attachments in SeaweedFS
+* REST API for frontend-backend communication
+* Containerized infrastructure using Docker
+
+== Architecture
+
+The application follows a client-server architecture.
+....
++----------------+
+| Angular Client |
++----------------+
+         |
+         | REST API
+         v
++----------------------+
+| Spring Boot Backend  |
+|       (Kotlin)       |
++----------------------+
+      |           |
+      |           |
+      v           v
++-----------+  +-----------+
+| PostgreSQL|  | SeaweedFS |
++-----------+  +-----------+
+                    ^
+                    |
+             Email Attachments
+      |
+      v
++----------------+
+| THM Mail Server|
++----------------+
+     SMTP / IMAP
+
+Tests:
+|
++--> H2 In-Memory Database
+....
+
+=== Frontend
+
+The frontend is implemented using Angular and provides the graphical user interface for email management.
+
+=== Backend
+
+* The backend is implemented using Spring Boot and Kotlin.
+* It handles business logic, user management, communication with the mail server, and interaction with storage systems.
+
+=== Mail Communication
+
+The application communicates with the THM Mail Server using:
+
+* SMTP (Simple Mail Transfer Protocol) for sending emails
+* IMAP (Internet Message Access Protocol) for retrieving and managing emails
+
+=== Data Storage
+
+* PostgreSQL is used as the database for persistent application data.
+* SeaweedFS is used for storing email attachments separately from application data.
+
+* H2 is used for testing as an in-memory database.
+
+== Technologies
+
+=== Frontend
+
+* Angular
+* TypeScript
+* Node.js
+
+=== Backend
+
+* Spring Boot
+* Kotlin
+* Gradle
+
+=== Infrastructure
+
+* Docker
+* PostgreSQL
+* SeaweedFS
+
+=== Testing
+
+* H2 Database
+
+== Prerequisites
+
+Before running the application, make sure the following software is installed:
+
+* Java 21
+* Gradle
+* Node.js
+* npm
+* Angular CLI
+* Docker
+* Docker Compose
+
+Verify your installation:
+
+[source,bash]
+----
+java --version
+gradle --version
+node --version
+npm --version
+docker --version
+docker compose version
+----
+
+== Setup
+
+=== Configure Environment
+
+Create the required configuration files and provide credentials for:
+
+* THM Mail Server
+* PostgreSQL
+* SeaweedFS
+
+Refer to the project configuration files for the required environment variables.
+
+== Running the Infrastructure
+
+Start PostgreSQL and SeaweedFS using Docker Compose:
+
+[source,bash]
+----
+docker compose up -d
+----
+Verify that all containers are running:
+
+[source,bash]
+----
+docker ps
+----
+== Running the Backend
+
+Navigate to the backend directory:
+
+[source,bash]
+----
+cd backend
+----
+Start the Spring Boot application:
+
+[source,bash]
+----
+./gradlew bootRun
+----
+The backend will be available at:
+http://localhost:8080
+
+== Running the Frontend
+
+Navigate to the frontend directory:
+
+[source,bash]
+----
+cd frontend
+----
+
+Install dependencies:
+
+[source,bash]
+npm install
+
+Start the Angular development server:
+
+[source,bash]
+ng serve
+
+The frontend will be available at:
+http://localhost:4200
+
+== Development
+
+=== Backend Development
+
+Build the backend:
+[source,bash]
+ ./gradlew build
+
+Run all tests:
+[source,bash]
+ ./gradlew test
+
+=== Frontend Development
+
+run Frontend:
+[source,bash]
+cd frontend
+npm install
+npm run build
+
+== Project Structure
+
+....
+project-root/
+├── backend/
+│   ├── src/
+│   ├── build.gradle.kts
+│   └── ...
+│
+├── frontend/
+│   ├── src/
+│   ├── package.json
+│   └── ...
+│
+├── gradle/
+├── docker-compose.yml
+└── README.adoc
+....
+
+== Dependencies
+
+=== Runtime Dependencies
+
+* Spring Boot
+* Kotlin
+* Angular
+* PostgreSQL
+* SeaweedFS
+* Docker
+
+=== Development Dependencies
+
+* Java 21
+* Gradle
+* Node.js
+* npm
+* Angular CLI
+
+=== Test Dependencies
+
+* H2 Database
+
+== License
+
+This project is part of a university project.
