@@ -1,110 +1,53 @@
 # THM Web-Technologies Mail Project
 
-Full‑stack web application for managing mails with:
+Full-stack web application for managing mails with:
 
-- **Backend:** Kotlin + Spring Boot (Spring MVC, Spring Security, Spring Data JPA, Validation), JWT, PostgreSQL/H2
+- **Backend:** Kotlin + Spring Boot, Spring Security, Spring Data JPA, Validation, JWT
 - **Frontend:** Angular + PrimeNG + TailwindCSS
 - **Database:** PostgreSQL via Docker Compose
+- **Attachment storage:** SeaweedFS with S3-compatible API
 
-> Repo layout:
->
-> - `backend/` — Spring Boot Kotlin service
-> - `frontend/` — Angular application
-> - `docker-compose.yml` — local Postgres
+## Repository Layout
 
----
+- `backend/` - Spring Boot Kotlin service
+- `frontend/` - Angular application
+- `docker-compose.yml` - local application stack
+- `seaweedfs-s3.json` - local SeaweedFS S3 credentials/configuration
 
-## Environment variables
+## Local Setup
 
-### Backend
+Create a `.env` file in the repository root, next to `docker-compose.yml`.
 
-These variables are read via `${ENV_VAR:default}` (defaults shown in parentheses):
-
-- `DB_URL` (default: `jdbc:h2:mem:testdb`)
-- `DB_DRIVER` (default: `org.h2.Driver`)
-- `DB_USER` (default: `dbuser`)
-- `DB_PASSWORD` (default: `password`)
-- `DB_DDL_AUTO` (default: `create-drop`)
-
-- `APP_SECRET` (default: `default_secret_key`)
-- `APP_NAME` (default: `MyApp`)
-- `APP_JWT_EXPIRES` (default: `3600`) — seconds
-- `APP_JWT_SECRET` (default: `jwt_secret_key`)
-
-- `FILE_UPLOAD_DIR` (default: `uploads`)
-
-### Mail (SMTP / IMAP)
-
-**SMTP (Outbound)** — for sending mails from the support inbox to all registered users:
-
-- `SPRING_MAIL_HOST` (default: `""` — empty, disables SMTP)
-- `SPRING_MAIL_PORT` (default: `465`)
-- `SPRING_MAIL_USERNAME` — your THM email or mail account
-- `SPRING_MAIL_PASSWORD` — corresponding password
-- `MAIL_FROM_ADDRESS` (default: uses `SPRING_MAIL_USERNAME`)
-
-**IMAP (Inbound)** — for polling external mail inbox (e.g., THM support mailbox):
-
-- `MAIL_IMAP_HOST` (default: `""` — empty, disables IMAP polling)
-- `MAIL_IMAP_PORT` (default: `993`)
-- `MAIL_IMAP_USERNAME` — your THM email or mail account
-- `MAIL_IMAP_PASSWORD` — corresponding password
-- `MAIL_IMAP_FOLDER` (default: `INBOX`)
-- `MAIL_IMAP_POLL_INTERVAL_MS` (default: `300000` — 5 minutes)
-
-### Docker Compose
-
-Used to configure the Postgres container:
-
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_NAME`
-
-### Example `.env`
+Required local values:
 
 ```env
-# -------------------------
-# Database (Docker Compose)
-# -------------------------
+# Database
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=mail_project
-
-# -------------------------
-# Backend datasource config
-# -------------------------
-# For local Postgres (matches docker-compose port mapping 5432:5432)
-DB_URL=jdbc:postgresql://localhost:5432/mail_project
-DB_DRIVER=org.postgresql.Driver
-
-# JPA schema strategy (dev vs prod)
 DB_DDL_AUTO=update
 
-# -------------------------
 # App / JWT
-# -------------------------
 APP_NAME=mail-project
 APP_SECRET=change_me_super_secret
 APP_JWT_EXPIRES=3600
 APP_JWT_SECRET=change_me_jwt_secret
 
-# -------------------------
-# File uploads
-# -------------------------
-FILE_UPLOAD_DIR=uploads
+# SeaweedFS / S3 storage
+STORAGE_S3_ENDPOINT=http://seaweedfs:8333
+STORAGE_S3_BUCKET=mail-attachments
+STORAGE_S3_REGION=us-east-1
+STORAGE_S3_ACCESS_KEY=mail-system
+STORAGE_S3_SECRET_KEY=mail-system-secret
 
-# -------------------------
-# SMTP Outbound Mail (Support Notifications)
-# -------------------------
+# SMTP outbound mail
 SPRING_MAIL_HOST=mailgate.thm.de
 SPRING_MAIL_PORT=465
 SPRING_MAIL_USERNAME=your-thm-email@student.thm.de
 SPRING_MAIL_PASSWORD=your-thm-password
 MAIL_FROM_ADDRESS=your-thm-email@student.thm.de
 
-# -------------------------
-# IMAP Inbound Mail (External Mailbox Polling)
-# -------------------------
+# IMAP inbound mail
 MAIL_IMAP_HOST=mailgate.thm.de
 MAIL_IMAP_PORT=993
 MAIL_IMAP_USERNAME=your-thm-email@student.thm.de
@@ -113,101 +56,121 @@ MAIL_IMAP_FOLDER=INBOX
 MAIL_IMAP_POLL_INTERVAL_MS=300000
 ```
 
----
+Do not commit `.env`. It is ignored by Git.
 
-## Support Features
+## Start
 
-### External Mail Import (IMAP)
+Use Docker Compose as the primary local setup:
 
-The backend polls the configured IMAP inbox at regular intervals (default: 5 minutes) and:
+```bash
+docker compose up -d --build
+```
 
-1. **Fetches unread messages** from the configured mailbox
-2. **Downloads attachments** and stores them locally
-3. **Deduplicates** using Message-ID (avoids re-importing the same mail multiple times)
-4. **Marks as read** only after successful import
-5. **Distributes to all users** — every registered user sees the incoming support mail
+Open the application at:
 
-**Configuration:** Set `MAIL_IMAP_*` variables to enable.
+```text
+http://localhost
+```
 
-### Ticket Tracking
+The backend and database are not exposed directly to the host. Caddy in the frontend container proxies `/api/*` to the backend.
 
-When responding to an incoming (external) email:
+## SeaweedFS
 
-1. A **unique ticket number** is auto-generated: `[TICKET-XXXXXXXX]`
-2. Prepended to the reply's **subject** if not already present
-3. Stored in the `tracking_code` field for reference
+Attachments are stored in SeaweedFS through its S3-compatible API.
 
-**Purpose:** Track conversations across multiple replies and support thread correlations.
+In Docker Compose:
 
-### Shared Support Inbox
+- SeaweedFS runs as service `seaweedfs`
+- the backend talks to `http://seaweedfs:8333`
+- the default bucket is `mail-attachments`
+- credentials are defined in `seaweedfs-s3.json` and mirrored through `.env`
 
-- All incoming external mails are visible to **all registered users**
-- Replies use the configured **MAIL_FROM_ADDRESS** as the sender
-- No individual user inboxes needed for external correspondence
+Attachment metadata remains in PostgreSQL. The binary file content is stored in SeaweedFS under keys like:
 
----
+```text
+attachments/<uuid>.<extension>
+```
 
-## Seed users
+Downloads go through the backend endpoint:
 
-> **Note:** These accounts are intended for development/testing only.
+```text
+GET /api/attachments/{attachmentId}
+```
+
+The endpoint checks whether the authenticated user is the sender or has a mail record for the mail before returning the file.
+
+## Mail Import
+
+### IMAP
+
+The backend polls the configured IMAP inbox.
+
+Behavior:
+
+1. The first successful sync imports all messages from the configured folder.
+2. Later syncs import unread messages only.
+3. The IMAP folder is opened read-only, so read/unread state is not changed by the import.
+4. Messages are deduplicated by `Message-ID`.
+5. Imported external mails are assigned to all internal app users.
+6. External senders are stored as contacts with `externalContact=true`.
+7. Attachments are uploaded to SeaweedFS during import.
+
+If `MAIL_IMAP_HOST`, `MAIL_IMAP_USERNAME`, or `MAIL_IMAP_PASSWORD` is empty, IMAP polling is disabled.
+
+### SMTP
+
+SMTP is used for outbound mails. Configure `SPRING_MAIL_*` and `MAIL_FROM_ADDRESS` in `.env`.
+
+## Ticket Tracking
+
+Imported external mails receive a tracking code in the subject:
+
+```text
+[TICKET-XXXXXXXX]
+```
+
+Existing ticket prefixes are reused. This keeps replies grouped by the same tracking code.
+
+## Shared Support Inbox
+
+Imported external mails are visible to all internal app users. External contacts are kept out of the visible recipient lists in the mail detail view.
+
+## Reset Local Data
+
+To reset PostgreSQL and SeaweedFS and trigger a fresh initial IMAP import:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+This deletes local database and attachment storage volumes.
+
+## Seed Users
+
+Development users from `backend/src/main/resources/data.json`:
 
 | # | First name | Last name | Email | Password |
-|---:|-----------|----------|-------|----------|
+|---:|------------|-----------|-------|----------|
 | 1 | Ameline | Allanson | `aallanson@example.com` | `123456` |
 | 2 | Sanson | Vardey | `svardey1@example.com` | `123456` |
 | 3 | Jami | Poe | `jpoe@example.uk` | `123456` |
 | 4 | Trent | Ianno | `tianno3@example.com` | `123456` |
 | 5 | Alikee | Raisbeck | `araisbeck4@example.com` | `123456` |
 
----
+## Build And Checks
 
-## Quick start (local development)
-
-### 1) Start the database (PostgreSQL)
-
-1. Create a `.env` file in the repository root (same folder as `docker-compose.yml`) with the variables above.
-2. Start Postgres:
+Backend:
 
 ```bash
-docker compose up -d
+./gradlew.bat :backend:test
 ```
 
-PostgreSQL will be exposed on `localhost:5432`.
-
----
-
-### 2) Run the backend
-
-```bash
-cd backend
-./gradlew bootRun
-```
-
----
-
-### 3) Run the frontend
+Frontend:
 
 ```bash
 cd frontend
-npm install
-npm run start
-```
-
----
-
-## Build
-
-### Backend
-
-```bash
-cd backend
-./gradlew build
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
 npm run build
 ```
+
+The frontend currently emits a known Angular bundle budget warning.
