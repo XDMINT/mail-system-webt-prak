@@ -5,5 +5,8 @@
   [title]="'Inbox'"
   [hasMore]="hasMore()"
   [isLoadingMore]="isLoadingMore()"
+  [showRefresh]="true"
+  [isRefreshing]="isRefreshing()"
   (loadMore)="loadMore()"
+  (refresh)="refreshInbox()"
 ></app-mails-list>

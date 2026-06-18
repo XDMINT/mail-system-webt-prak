@@ -18,6 +18,7 @@ class SMTPService(
     private val mailRecordService: MailRecordService,
     private val fileStorageService: FileStorageService,
     @Value("\${mail.from-address:\${spring.mail.username:}}") private val fromAddress: String,
+    @Value("\${mail.reply-to-address:\${mail.imap.username:\${mail.from-address:\${spring.mail.username:}}}}") private val replyToAddress: String,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -36,6 +37,9 @@ class SMTPService(
             val message = javaMailSender.createMimeMessage()
             val helper = MimeMessageHelper(message, true, StandardCharsets.UTF_8.name())
             helper.setFrom(fromAddress)
+            if (replyToAddress.isNotBlank()) {
+                helper.setReplyTo(replyToAddress)
+            }
 
             val toRecipients = recipients.filter { it.type == MailType.TO }.mapNotNull { it.user?.email }.distinct()
             val ccRecipients = recipients.filter { it.type == MailType.CC }.mapNotNull { it.user?.email }.distinct()

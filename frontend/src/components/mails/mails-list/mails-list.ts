@@ -16,5 +16,8 @@ export class MailsList {
   @Input() hasMore = false;
   @Input() isLoadingMore = false;
   @Output() loadMore = new EventEmitter<void>();
+  @Input() showRefresh = false;
+  @Input() isRefreshing = false;
+  @Output() refresh = new EventEmitter<void>();
 
 }

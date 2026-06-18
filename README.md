@@ -46,6 +46,7 @@ SPRING_MAIL_PORT=465
 SPRING_MAIL_USERNAME=your-thm-email@student.thm.de
 SPRING_MAIL_PASSWORD=your-thm-password
 MAIL_FROM_ADDRESS=your-thm-email@student.thm.de
+MAIL_REPLY_TO_ADDRESS=your-thm-email@student.thm.de
 
 # IMAP inbound mail
 MAIL_IMAP_HOST=mailgate.thm.de
@@ -119,7 +120,9 @@ If `MAIL_IMAP_HOST`, `MAIL_IMAP_USERNAME`, or `MAIL_IMAP_PASSWORD` is empty, IMA
 
 ### SMTP
 
-SMTP is used for outbound mails. Configure `SPRING_MAIL_*` and `MAIL_FROM_ADDRESS` in `.env`.
+SMTP is used for outbound mails. Configure `SPRING_MAIL_*`, `MAIL_FROM_ADDRESS`, and optionally `MAIL_REPLY_TO_ADDRESS` in `.env`.
+
+`MAIL_REPLY_TO_ADDRESS` should point to the mailbox that IMAP imports. If it is omitted, the backend falls back to `MAIL_IMAP_USERNAME`, then `MAIL_FROM_ADDRESS`, then `SPRING_MAIL_USERNAME`.
 
 ## Ticket Tracking
 

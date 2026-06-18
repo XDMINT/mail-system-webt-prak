@@ -21,6 +21,7 @@ export class MailInbox {
   protected mails = signal<MailListItem[]>([]);
   protected isLoading = signal(true);
   protected isLoadingMore = signal(false);
+  protected isRefreshing = signal(false);
   protected hasMore = signal(false);
   private currentPage = 0;
   private readonly pageSize = 25;
@@ -37,9 +38,19 @@ export class MailInbox {
     this.loadMails(this.currentPage + 1);
   }
 
-  private loadMails(page = 0) {
+  protected refreshInbox() {
+    if (this.isRefreshing() || this.isLoading()) {
+      return;
+    }
+
+    this.loadMails(0, true);
+  }
+
+  private loadMails(page = 0, isRefresh = false) {
     const isFirstPage = page === 0;
-    if (isFirstPage) {
+    if (isRefresh) {
+      this.isRefreshing.set(true);
+    } else if (isFirstPage) {
       this.isLoading.set(true);
     } else {
       this.isLoadingMore.set(true);
@@ -52,6 +63,7 @@ export class MailInbox {
         this.mails.update((existing) => isFirstPage ? response.content : [...existing, ...response.content]);
         this.isLoading.set(false);
         this.isLoadingMore.set(false);
+        this.isRefreshing.set(false);
       },
       error: (err) => {
         this.messageService.add({
@@ -61,6 +73,7 @@ export class MailInbox {
         });
         this.isLoading.set(false);
         this.isLoadingMore.set(false);
+        this.isRefreshing.set(false);
       },
     });
   }
