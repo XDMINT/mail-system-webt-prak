@@ -1,15 +1,18 @@
 package de.thm.mni.backend.mail
 
+import de.thm.mni.backend.common.dto.PageResponse
 import de.thm.mni.backend.error.ResourceCannotBeModifiedException
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail.dto.MailRequest
 import de.thm.mni.backend.mail.dto.MailDTO
+import de.thm.mni.backend.mail.dto.MailListItemDTO
 import de.thm.mni.backend.mail.dto.toMailCreate
 import de.thm.mni.backend.mail.dto.toMailUpdate
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail_record.MailRecordService
 import de.thm.mni.backend.user.UserService
 import jakarta.validation.Valid
+import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -58,11 +61,26 @@ class MailController(private val mailService: MailService,
     }
 
     @GetMapping("/incoming")
-    fun getIncomingMailsForUser(@AuthenticationPrincipal user: UserDetails): List<MailDTO> {
+    fun getIncomingMailsForUser(
+        @AuthenticationPrincipal user: UserDetails,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "25") size: Int,
+    ): PageResponse<MailListItemDTO> {
         val userId = UUID.fromString(user.username)
-        val user = userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
-        val userMails = mailRecordService.getAllIncomingMailsForUser(userId)
-        return userMails.map { mail -> mailMapper.toDTO(user, mail) }
+        userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
+
+        val safePage = page.coerceAtLeast(0)
+        val safeSize = size.coerceIn(1, 100)
+        val userMails = mailRecordService.getIncomingMailsForUser(userId, PageRequest.of(safePage, safeSize))
+
+        return PageResponse(
+            content = userMails.content.map { mail -> mailMapper.toListItemDTO(mail) },
+            page = userMails.number,
+            size = userMails.size,
+            totalElements = userMails.totalElements,
+            totalPages = userMails.totalPages,
+            hasNext = userMails.hasNext()
+        )
     }
 
     @GetMapping("/{mailId}")

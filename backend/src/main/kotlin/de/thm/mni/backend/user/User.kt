@@ -28,12 +28,16 @@ class User {
     @Column(name = "password")
     var password: String = ""
 
+    @Column(name = "external_contact", nullable = false)
+    var externalContact: Boolean = false
+
     constructor()
-    constructor(firstName: String, lastName: String, email: String, password: String) {
+    constructor(firstName: String, lastName: String, email: String, password: String, externalContact: Boolean = false) {
         this.firstName = firstName
         this.lastName = lastName
         this.email = email
         this.password = password
+        this.externalContact = externalContact
     }
 
 

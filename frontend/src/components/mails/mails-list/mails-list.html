@@ -29,6 +29,18 @@
                   <app-mails-list-element [mail]="mail" />
                 </div>
               }
+              @if (hasMore) {
+                <div class="p-4 flex justify-center">
+                  <button
+                    type="button"
+                    class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    [disabled]="isLoadingMore"
+                    (click)="loadMore.emit()"
+                  >
+                    {{ isLoadingMore ? 'Loading...' : 'Load more' }}
+                  </button>
+                </div>
+              }
             </div>
           } @else {
             <div class="flex items-center justify-center p-12">

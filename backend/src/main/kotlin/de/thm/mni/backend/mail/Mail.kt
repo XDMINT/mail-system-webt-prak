@@ -33,10 +33,10 @@ class Mail {
     @JoinColumn(name = "user_id", nullable = false)
     var sender: User? = null
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     var subject: String = ""
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     var content: String = ""
 
     @Column
@@ -47,13 +47,13 @@ class Mail {
     @Enumerated(EnumType.STRING)
     var source: MailSource = MailSource.INTERN
 
-    @Column(name = "tracking_code", unique = true)
+    @Column(name = "tracking_code", length = 15)
     var trackingCode: String? = null
 
-    @Column(name = "external_message_id", unique = true)
+    @Column(name = "external_message_id", unique = true, columnDefinition = "TEXT")
     var externalMessageId: String? = null
 
-    @Column(name = "external_sender_email")
+    @Column(name = "external_sender_email", columnDefinition = "TEXT")
     var externalSenderEmail: String? = null
 
     @OneToMany(mappedBy = "mail", cascade = [CascadeType.ALL], orphanRemoval = true)

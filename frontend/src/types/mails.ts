@@ -31,6 +31,19 @@ export type Mail = {
   sentAt?: string;
 };
 
+export type MailListItem = Omit<Mail, 'to' | 'cc' | 'bcc' | 'replyTo' | 'attachments'> & {
+  attachmentCount: number;
+};
+
+export type PageResponse<T> = {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+};
+
 export type CreateMail = {
   subject: string;
   content: string;

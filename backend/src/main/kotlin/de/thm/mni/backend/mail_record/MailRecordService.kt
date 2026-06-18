@@ -5,6 +5,8 @@ import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailType
 import de.thm.mni.backend.mail_record.dto.CreateMailRecord
 import jakarta.transaction.Transactional
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -36,6 +38,15 @@ class MailRecordService(private val repository: MailRecordRepository) {
             .filter { it -> it.type !== MailType.REPLY_TO }
             .map { it -> it.mail!! }
             .filter { mail -> mail.status == MailStatus.SENT }
+    }
+
+    fun getIncomingMailsForUser(userId: UUID, pageable: Pageable): Page<Mail> {
+        return repository.findIncomingMailsForUser(
+            userId = userId,
+            replyToType = MailType.REPLY_TO,
+            status = MailStatus.SENT,
+            pageable = pageable
+        )
     }
 
 }

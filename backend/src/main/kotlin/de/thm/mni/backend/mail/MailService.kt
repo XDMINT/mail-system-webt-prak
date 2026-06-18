@@ -16,7 +16,7 @@ import de.thm.mni.backend.storage.FileStorageService
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.UserService
 import jakarta.transaction.Transactional
-import org.springframework.beans.factory.annotation.Value
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
@@ -29,6 +29,7 @@ class MailService(
     private val smtpService: SMTPService,
     private val fileStorageService: FileStorageService,
     private val mailRecordService: MailRecordService,
+    private val passwordEncoder: PasswordEncoder,
 ){
     fun getMailById(id: UUID): Mail? {
         return mailRepository.findById(id).orElse(null)
@@ -106,6 +107,7 @@ class MailService(
         mailEntity.externalSenderEmail = senderEmail
         mailEntity.externalMessageId = externalMessageId
         mailEntity.sentAt = receivedAt
+        applyTrackingCodeToImportedMail(mailEntity)
 
         val storedAttachments = attachments.mapNotNull { file ->
             fileStorageService.saveFile(file.fileName, file.contentType, file.bytes)
@@ -114,7 +116,7 @@ class MailService(
         connectAttachmentsToMail(mailEntity, storedAttachments)
         val createdMail = mailRepository.save(mailEntity)
 
-        userService.getAllUsers()
+        userService.getInternalUsers()
             .forEach { receiver ->
                 mailRecordService.createMailRecord(CreateMailRecord(
                     mail = createdMail,
@@ -174,9 +176,19 @@ class MailService(
                 firstName = "External",
                 lastName = "Sender",
                 email = email,
-                password = UUID.randomUUID().toString()
+                password = passwordEncoder.encode(UUID.randomUUID().toString()).toString(),
+                externalContact = true
             )
         )
+    }
+
+    private fun applyTrackingCodeToImportedMail(mail: Mail) {
+        val trackingCode = extractTrackingCode(mail.subject) ?: generateTrackingCode()
+        mail.trackingCode = trackingCode
+
+        if (!hasTrackingPrefix(mail.subject)) {
+            mail.subject = "[$trackingCode] ${mail.subject}"
+        }
     }
 
     private fun applyTrackingCodeIfNeeded(mail: Mail) {
@@ -211,7 +223,7 @@ class MailService(
     }
 
     private companion object {
-        private val TRACKING_PREFIX_REGEX = Regex("^\\[(TICKET-[A-Z0-9-]+)\\]\\s*")
+        private val TRACKING_PREFIX_REGEX = Regex("^\\[(TICKET-[A-Z0-9]{8})\\]\\s*")
     }
 
     private fun createMailRecordsFromIds(

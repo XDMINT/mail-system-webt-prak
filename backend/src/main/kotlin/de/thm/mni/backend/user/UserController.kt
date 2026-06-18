@@ -3,6 +3,8 @@ package de.thm.mni.backend.user
 
 import de.thm.mni.backend.error.ResourceAlreadyExistsException
 import de.thm.mni.backend.error.ResourceNotFoundException
+import de.thm.mni.backend.user.dto.EnsureUserRequest
+import de.thm.mni.backend.user.dto.EnsureUserResponse
 import de.thm.mni.backend.user.dto.UserDTO
 import de.thm.mni.backend.user.dto.UserUpdate
 import de.thm.mni.backend.user.dto.toDTO
@@ -14,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -37,6 +40,27 @@ class UserController(private val userService: UserService, private val passwordE
         return userService.getUserById(id)?.toDTO()
     }
 
+    @PostMapping("/ensure")
+    fun ensureUser(@Valid @RequestBody data: EnsureUserRequest): EnsureUserResponse {
+        val normalizedEmail = data.email.trim().lowercase()
+        val user = userService.getUserByEmail(normalizedEmail) ?: userService.createUser(
+            User(
+                firstName = data.firstName?.takeIf { it.isNotBlank() } ?: "External",
+                lastName = data.lastName?.takeIf { it.isNotBlank() } ?: "User",
+                email = normalizedEmail,
+                password = passwordEncoder.encode(UUID.randomUUID().toString()).toString(),
+                externalContact = true
+            )
+        )
+
+        return EnsureUserResponse(
+            id = user.id,
+            firstName = user.firstName,
+            lastName = user.lastName,
+            email = user.email,
+        )
+    }
+
     @PutMapping("/{id}")
     fun updateUser(@PathVariable id: UUID,
                    @Valid @RequestBody userData: UserUpdate,
@@ -57,7 +81,8 @@ class UserController(private val userService: UserService, private val passwordE
             firstName = userData.firstName,
             lastName = userData.lastName,
             email = userData.email,
-            password = existingUser.password
+            password = existingUser.password,
+            externalContact = existingUser.externalContact
         )
         updatedUser.id = existingUser.id
 

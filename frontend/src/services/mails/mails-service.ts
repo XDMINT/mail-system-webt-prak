@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { API_BASE_URL } from '../../constants';
-import { CreateMail, Mail, UpdateMail } from '../../types/mails';
+import { CreateMail, Mail, MailListItem, PageResponse, UpdateMail } from '../../types/mails';
 import { User } from '../../types/user';
 
 @Injectable({
@@ -10,8 +10,13 @@ import { User } from '../../types/user';
 export class MailsService {
   private http = inject(HttpClient);
 
-  public getIncomingMails() {
-    return this.http.get<Mail[]>(`${API_BASE_URL}/mails/incoming`);
+  public getIncomingMails(page = 0, size = 25) {
+    return this.http.get<PageResponse<MailListItem>>(`${API_BASE_URL}/mails/incoming`, {
+      params: {
+        page,
+        size,
+      },
+    });
   }
 
   public getDrafts() {
@@ -38,6 +43,10 @@ export class MailsService {
     return this.http.get<User[]>(`${API_BASE_URL}/users`);
   }
 
+  public ensureUser(email: string) {
+    return this.http.post<User>(`${API_BASE_URL}/users/ensure`, { email });
+  }
+
   public createDraft(mail: CreateMail, files: File[]) {
     const formData = this.createFormData(mail, files);
     return this.http.post<Mail>(`${API_BASE_URL}/mails`, formData);
@@ -53,8 +62,8 @@ export class MailsService {
     return this.http.put<Mail>(`${API_BASE_URL}/mails/${id}`, formData);
   }
 
-  public fetchAttachment(filename: string) {
-    return this.http.get(`${API_BASE_URL}/images/${filename}`, { responseType: 'blob' });
+  public fetchAttachment(id: string) {
+    return this.http.get(`${API_BASE_URL}/attachments/${id}`, { responseType: 'blob' });
   }
 
   private createFormData(mail: CreateMail | UpdateMail, files: File[]): FormData {

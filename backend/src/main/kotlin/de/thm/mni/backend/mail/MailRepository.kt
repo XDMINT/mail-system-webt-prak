@@ -6,6 +6,7 @@ import java.util.UUID
 
 interface MailRepository: CrudRepository<Mail, UUID> {
     fun findAllBySender(sender: User): MutableList<Mail>
+    fun existsBySenderAndSubjectAndContent(sender: User, subject: String, content: String): Boolean
     fun findByExternalMessageId(externalMessageId: String): Mail?
     fun existsByExternalMessageId(externalMessageId: String): Boolean
 }

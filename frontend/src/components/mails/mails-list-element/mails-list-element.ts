@@ -1,6 +1,6 @@
 import { Component, Input, inject } from '@angular/core';
 import { Router} from '@angular/router';
-import { Mail } from '../../../types/mails';
+import { Mail, MailListItem } from '../../../types/mails';
 import { TagModule } from 'primeng/tag';
 import {getSeverityBadge} from '../../../utils/badges';
 
@@ -10,7 +10,7 @@ import {getSeverityBadge} from '../../../utils/badges';
   templateUrl: './mails-list-element.html',
 })
 export class MailsListElement {
-  @Input() mail!: Mail;
+  @Input() mail!: Mail | MailListItem;
 
   private router = inject(Router);
   protected readonly getSeverityBadge = getSeverityBadge;
@@ -36,5 +36,11 @@ export class MailsListElement {
     this.router.navigate(['/mails', this.mail.id]);
   }
 
+  getAttachmentCount(): number {
+    if ('attachmentCount' in this.mail) {
+      return this.mail.attachmentCount;
+    }
+    return this.mail.attachments.length;
+  }
 
 }

@@ -11,6 +11,7 @@ import de.thm.mni.backend.user.UserRepository
 import de.thm.mni.backend.util.dto.SeedData
 import org.springframework.boot.CommandLineRunner
 import org.springframework.core.io.ClassPathResource
+import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
@@ -25,6 +26,8 @@ class DatabaseInitializer(
     private val mailRecordRepository: MailRecordRepository,
     private val passwordEncoder: PasswordEncoder
 ): CommandLineRunner {
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     override fun run(vararg args: String) {
         try {
             val resource = ClassPathResource("data.json")
@@ -37,19 +40,32 @@ class DatabaseInitializer(
             val usersDto = jsonData.users
             val mailsDto = jsonData.mails
 
-            val usersToSave = usersDto.map { dto ->
-                User(
-                    firstName = dto.firstName,
-                    lastName = dto.lastName,
-                    email = dto.email,
-                    password = passwordEncoder.encode(dto.password).toString()
-                )
+            usersDto.forEach { dto ->
+                if (!userRepository.existsUserByEmail(dto.email)) {
+                    userRepository.save(
+                        User(
+                            firstName = dto.firstName,
+                            lastName = dto.lastName,
+                            email = dto.email,
+                            password = passwordEncoder.encode(dto.password).toString()
+                        )
+                    )
+                }
             }
-            userRepository.saveAll(usersToSave)
 
             mailsDto.forEach { dto ->
+                val sender = userRepository.findByEmail(dto.senderEmail)
+                if (sender == null) {
+                    logger.warn("Skipping seed mail because sender {} does not exist", dto.senderEmail)
+                    return@forEach
+                }
+
+                if (mailRepository.existsBySenderAndSubjectAndContent(sender, dto.subject, dto.content)) {
+                    return@forEach
+                }
+
                 val mail = Mail(
-                    sender = userRepository.findByEmail((dto.senderEmail))!!,
+                    sender = sender,
                     subject = dto.subject,
                     content = dto.content,
                     attachments = mutableListOf()
@@ -62,7 +78,7 @@ class DatabaseInitializer(
             }
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            logger.warn("Failed to initialize seed data", e)
         }
 
     }

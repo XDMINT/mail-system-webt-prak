@@ -28,6 +28,10 @@ class UserService(private val userRepository: UserRepository){
         return userRepository.findAll().toList()
     }
 
+    fun getInternalUsers(): List<User> {
+        return userRepository.findAllByExternalContactFalse()
+    }
+
     fun updateUser(id: UUID, updatedUser: User): User {
         return userRepository.save(updatedUser)
     }

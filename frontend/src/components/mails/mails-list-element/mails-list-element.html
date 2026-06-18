@@ -30,10 +30,10 @@
   </div>
 
   <div class="flex items-center gap-4 shrink-0">
-    @if (mail.attachments.length > 0) {
+    @if (getAttachmentCount() > 0) {
       <span class="text-gray-500 text-sm truncate ml-3 flex items-center gap-1">
         <i class="pi pi-file"></i>
-        +{{ mail.attachments.length }} attachment{{ mail.attachments.length > 1 ? 's' : '' }}
+        +{{ getAttachmentCount() }} attachment{{ getAttachmentCount() > 1 ? 's' : '' }}
       </span>
     }
     <p-tag [value]="mail.status" [severity]="getSeverityBadge(mail.status)" />

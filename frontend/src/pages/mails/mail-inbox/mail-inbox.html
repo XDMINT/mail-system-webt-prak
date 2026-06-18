@@ -1,2 +1,9 @@
 <p-toast />
-<app-mails-list [mails]="mails()" [isLoading]="isLoading()" [title]="'Inbox'"></app-mails-list>
+<app-mails-list
+  [mails]="mails()"
+  [isLoading]="isLoading()"
+  [title]="'Inbox'"
+  [hasMore]="hasMore()"
+  [isLoadingMore]="isLoadingMore()"
+  (loadMore)="loadMore()"
+></app-mails-list>

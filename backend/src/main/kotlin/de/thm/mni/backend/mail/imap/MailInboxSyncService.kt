@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import org.springframework.web.util.HtmlUtils
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -27,6 +28,7 @@ import java.util.UUID
 @Service
 class MailInboxSyncService(
     private val mailService: MailService,
+    private val imapSyncStateRepository: ImapSyncStateRepository,
     @Value("\${mail.imap.host:}") private val host: String,
     @Value("\${mail.imap.port:993}") private val port: Int,
     @Value("\${mail.imap.username:}") private val username: String,
@@ -57,14 +59,25 @@ class MailInboxSyncService(
             store.connect(host, port, username, password)
 
             folder = store.getFolder(folderName)
-            folder.open(Folder.READ_WRITE)
+            folder.open(Folder.READ_ONLY)
 
-            val unseenMessages = folder.search(FlagTerm(Flags(Flags.Flag.SEEN), false))
-            unseenMessages.forEach { message ->
+            val syncState = imapSyncStateRepository.findByFolderName(folderName) ?: ImapSyncState(folderName)
+            val isInitialImport = !syncState.initialImportCompleted
+            val messages = if (isInitialImport) {
+                folder.messages
+            } else {
+                folder.search(FlagTerm(Flags(Flags.Flag.SEEN), false))
+            }
+
+            var importedCount = 0
+            var skippedCount = 0
+            var failedCount = 0
+
+            messages.forEach { message ->
                 try {
                     val externalMessageId = extractMessageId(message)
                     if (mailService.getMailByExternalMessageId(externalMessageId) != null) {
-                        message.setFlag(Flags.Flag.SEEN, true)
+                        skippedCount++
                         return@forEach
                     }
 
@@ -78,11 +91,28 @@ class MailInboxSyncService(
                         externalMessageId = externalMessageId,
                         receivedAt = receivedAt,
                     )
-                    message.setFlag(Flags.Flag.SEEN, true)
+                    importedCount++
                 } catch (ex: Exception) {
+                    failedCount++
                     logger.warn("Failed to import email message #{}", message.messageNumber, ex)
                 }
             }
+
+            syncState.lastSyncAt = LocalDateTime.now()
+            if (isInitialImport && failedCount == 0) {
+                syncState.initialImportCompleted = true
+            }
+            imapSyncStateRepository.save(syncState)
+
+            logger.info(
+                "IMAP sync completed for folder {} with mode={}, found={}, imported={}, skipped={}, failed={}",
+                folderName,
+                if (isInitialImport) "initial" else "incremental",
+                messages.size,
+                importedCount,
+                skippedCount,
+                failedCount
+            )
         } catch (ex: Exception) {
             logger.warn("IMAP inbox synchronization failed", ex)
         } finally {
@@ -118,8 +148,7 @@ class MailInboxSyncService(
     }
 
     private fun parseMessage(message: Part): ParsedMessage {
-        val attachments = mutableListOf<ImportedAttachment>()
-        val content = StringBuilder()
+        val content = ParsedContent()
         var fromEmail = "unknown@unknown.local"
         var subject = "(no subject)"
 
@@ -130,40 +159,68 @@ class MailInboxSyncService(
             } ?: fromEmail
         }
 
-        when {
-            message.isMimeType("text/plain") -> {
-                content.append(message.content.toString())
-            }
-            message.isMimeType("text/html") -> {
-                content.append(message.content.toString())
-            }
-            message.isMimeType("multipart/*") -> {
-                val multipart = message.content as Multipart
-                for (index in 0 until multipart.count) {
-                    val part = multipart.getBodyPart(index)
-                    if (Part.ATTACHMENT.equals(part.disposition, ignoreCase = true) || part.fileName != null) {
-                        attachments.add(parseAttachment(part))
-                    } else if (part.isMimeType("text/plain") || part.isMimeType("text/html")) {
-                        content.append(part.content.toString())
-                    } else if (part.content is Multipart) {
-                        val nested = parseMessage(part)
-                        content.append(nested.content)
-                        attachments.addAll(nested.attachments)
-                        if (fromEmail == "unknown@unknown.local") {
-                            fromEmail = nested.fromEmail
-                        }
-                    }
-                }
-            }
-            else -> content.append(message.content?.toString() ?: "")
-        }
+        collectContent(message, content)
 
         return ParsedMessage(
             subject = subject,
-            content = content.toString().trim(),
+            content = content.toBodyText(),
             fromEmail = fromEmail,
-            attachments = attachments,
+            attachments = content.attachments,
         )
+    }
+
+    private fun collectContent(part: Part, content: ParsedContent) {
+        if (part is BodyPart && isAttachment(part)) {
+            content.attachments.add(parseAttachment(part))
+            return
+        }
+
+        when {
+            part.isMimeType("text/plain") -> {
+                content.plainTextParts.add(part.content.toString())
+            }
+            part.isMimeType("text/html") -> {
+                content.htmlTextParts.add(htmlToPlainText(part.content.toString()))
+            }
+            part.isMimeType("multipart/*") -> {
+                val multipart = part.content as Multipart
+                for (index in 0 until multipart.count) {
+                    collectContent(multipart.getBodyPart(index), content)
+                }
+            }
+            else -> {
+                val raw = part.content
+                if (raw is String) {
+                    content.plainTextParts.add(raw)
+                }
+            }
+        }
+    }
+
+    private fun isAttachment(part: BodyPart): Boolean {
+        return Part.ATTACHMENT.equals(part.disposition, ignoreCase = true) || part.fileName != null
+    }
+
+    private fun htmlToPlainText(html: String): String {
+        val withBreaks = html
+            .replace(Regex("(?is)<(script|style)[^>]*>.*?</\\1>"), " ")
+            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("(?i)</(p|div|li|tr|h[1-6]|blockquote)>"), "\n")
+            .replace(Regex("(?i)</td>"), "\t")
+            .replace(Regex("(?s)<[^>]+>"), " ")
+
+        return normalizeBodyText(HtmlUtils.htmlUnescape(withBreaks).replace('\u00A0', ' '))
+    }
+
+    private fun normalizeBodyText(text: String): String {
+        return text
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .lines()
+            .map { line -> line.trim().replace(Regex("[ \\t]{2,}"), " ") }
+            .joinToString("\n")
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
     }
 
     private fun parseAttachment(part: BodyPart): ImportedAttachment {
@@ -194,5 +251,21 @@ class MailInboxSyncService(
         val fromEmail: String,
         val attachments: List<ImportedAttachment>,
     )
+
+    private data class ParsedContent(
+        val plainTextParts: MutableList<String> = mutableListOf(),
+        val htmlTextParts: MutableList<String> = mutableListOf(),
+        val attachments: MutableList<ImportedAttachment> = mutableListOf(),
+    ) {
+        fun toBodyText(): String {
+            val parts = if (plainTextParts.any { it.isNotBlank() }) {
+                plainTextParts
+            } else {
+                htmlTextParts
+            }
+
+            return parts.joinToString("\n\n").trim()
+        }
+    }
 }
 

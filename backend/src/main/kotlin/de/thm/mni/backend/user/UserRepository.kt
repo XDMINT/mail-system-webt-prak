@@ -10,5 +10,6 @@ interface UserRepository: CrudRepository<User, UUID> {
     fun existsUserByEmail(email: String): Boolean
     fun findUserByEmail(email: String): User?
     fun findByEmail(email: String): User?
+    fun findAllByExternalContactFalse(): List<User>
 
 }
