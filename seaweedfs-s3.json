@@ -1,0 +1,21 @@
+{
+  "signingKey": "mail-system-local-signing-key",
+  "identities": [
+    {
+      "name": "backend",
+      "credentials": [
+        {
+          "accessKey": "mail-system",
+          "secretKey": "mail-system-secret"
+        }
+      ],
+      "actions": [
+        "Admin",
+        "Read",
+        "List",
+        "Tagging",
+        "Write"
+      ]
+    }
+  ]
+}

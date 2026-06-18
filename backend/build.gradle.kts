@@ -42,6 +42,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa:4.0.6")
     implementation("com.auth0:java-jwt:4.4.0")
     implementation("org.springframework.boot:spring-boot-starter-validation:4.0.6")
+    implementation(platform("software.amazon.awssdk:bom:2.46.13"))
+    implementation("software.amazon.awssdk:s3")
+    implementation("software.amazon.awssdk:url-connection-client")
     runtimeOnly("org.postgresql:postgresql:42.7.10")
     runtimeOnly("com.h2database:h2:2.4.240")
 }

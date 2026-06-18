@@ -9,7 +9,8 @@ COPY backend/build.gradle.kts backend/build.gradle.kts
 COPY frontend/build.gradle.kts frontend/build.gradle.kts
 COPY backend/src/ backend/src/
 
-RUN chmod +x gradlew \
+RUN sed -i 's/\r$//' gradlew \
+    && chmod +x gradlew \
     && ./gradlew :backend:bootJar --no-daemon
 
 FROM eclipse-temurin:25-jre-noble

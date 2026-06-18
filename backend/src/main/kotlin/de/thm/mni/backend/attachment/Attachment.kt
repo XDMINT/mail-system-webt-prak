@@ -19,7 +19,7 @@ class Attachment {
     @GeneratedValue(strategy = GenerationType.UUID)
     var id : UUID? = null
 
-    @Column(name = "file_name")
+    @Column(name = "file_name", columnDefinition = "TEXT")
     var fileName: String?= ""
 
     @Column(name = "size")

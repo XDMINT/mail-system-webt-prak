@@ -1,97 +1,137 @@
 package de.thm.mni.backend.storage
 
 import de.thm.mni.backend.attachment.dto.AttachmentDTO
-import jakarta.annotation.PostConstruct
-import org.springframework.core.io.Resource
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.core.io.UrlResource
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.core.io.Resource
 import org.springframework.stereotype.Repository
 import org.springframework.web.multipart.MultipartFile
-import java.io.IOException
-import java.net.MalformedURLException
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
+import software.amazon.awssdk.core.ResponseBytes
+import software.amazon.awssdk.core.sync.RequestBody
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.S3Configuration
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
+import software.amazon.awssdk.services.s3.model.GetObjectRequest
+import software.amazon.awssdk.services.s3.model.GetObjectResponse
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException
+import software.amazon.awssdk.services.s3.model.PutObjectRequest
+import java.net.URI
 import java.util.UUID
 
 
 @Repository
-class FileStorageRepository(@Value("\${file.upload-dir}") private val uploadDir: String) {
+class FileStorageRepository(
+    @Value("\${storage.s3.endpoint}") private val endpoint: String,
+    @Value("\${storage.s3.bucket}") private val bucket: String,
+    @Value("\${storage.s3.region}") private val region: String,
+    @Value("\${storage.s3.access-key}") private val accessKey: String,
+    @Value("\${storage.s3.secret-key}") private val secretKey: String,
+) {
+    private val s3Client: S3Client = S3Client.builder()
+        .endpointOverride(URI.create(endpoint))
+        .region(Region.of(region))
+        .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+        .serviceConfiguration(
+            S3Configuration.builder()
+                .pathStyleAccessEnabled(true)
+                .chunkedEncodingEnabled(false)
+                .build()
+        )
+        .httpClient(UrlConnectionHttpClient.builder().build())
+        .build()
 
-    private var rootLocation: Path? = null
-
-    @PostConstruct
-    fun init() {
-        try {
-            this.rootLocation = Paths.get(uploadDir)
-            Files.createDirectories(rootLocation)
-        } catch (e: IOException) {
-            throw RuntimeException("Could not initialize folder for upload!")
-        }
-    }
+    @Volatile
+    private var bucketReady = false
 
     fun saveFile(file: MultipartFile): AttachmentDTO? {
-        try {
-            if (file.isEmpty) {
-                return null
-            }
-
-            return saveFile(file.originalFilename ?: "attachment", file.contentType, file.bytes)
-        } catch (e: IOException) {
-            throw RuntimeException("Failed to store file.", e)
+        if (file.isEmpty) {
+            return null
         }
+
+        return saveFile(file.originalFilename ?: "attachment", file.contentType, file.bytes)
     }
 
     fun saveFile(fileName: String, contentType: String?, content: ByteArray): AttachmentDTO {
-        try {
-            val safeName = fileName.ifBlank { "attachment" }
-            val extension = safeName.substringAfterLast('.', "")
-            val newFilename = if (extension.isBlank()) {
-                UUID.randomUUID().toString()
-            } else {
-                "${UUID.randomUUID()}.$extension"
-            }
+        ensureBucket()
 
-            val destinationFile: Path = this.rootLocation?.resolve(Paths.get(newFilename))
-                ?.normalize()?.toAbsolutePath()
-                ?: throw RuntimeException("Could not resolve destination file!")
-
-            Files.write(destinationFile, content)
-
-            return AttachmentDTO(
-                size = content.size.toLong(),
-                fileName = safeName,
-                mimeType = contentType,
-                path = newFilename
-            )
-        } catch (e: IOException) {
-            throw RuntimeException("Failed to store file.", e)
+        val safeName = fileName.ifBlank { "attachment" }
+        val extension = safeName.substringAfterLast('.', "")
+        val objectKey = if (extension.isBlank()) {
+            "attachments/${UUID.randomUUID()}"
+        } else {
+            "attachments/${UUID.randomUUID()}.$extension"
         }
+
+        val request = PutObjectRequest.builder()
+            .bucket(bucket)
+            .key(objectKey)
+            .contentLength(content.size.toLong())
+            .contentType(contentType ?: "application/octet-stream")
+            .metadata(mapOf("file-name" to safeName))
+            .build()
+
+        s3Client.putObject(request, RequestBody.fromBytes(content))
+
+        return AttachmentDTO(
+            id = null,
+            size = content.size.toLong(),
+            fileName = safeName,
+            mimeType = contentType,
+            path = objectKey
+        )
     }
 
-    fun deleteFile(filename: String) {
-        val filePath = rootLocation?.resolve(filename)
-            ?: throw RuntimeException("Could not delete the file!")
+    fun deleteFile(objectKey: String) {
+        ensureBucket()
 
-        try {
-            Files.deleteIfExists(filePath)
-        } catch (e: IOException) {
-            throw RuntimeException("Could not delete the file!", e)
-        }
+        s3Client.deleteObject(
+            DeleteObjectRequest.builder()
+                .bucket(bucket)
+                .key(objectKey)
+                .build()
+        )
     }
 
-    fun load(filename: String): Resource {
-        try {
-            val file = rootLocation?.resolve(filename) ?: throw RuntimeException("File not found!")
-            val resource = UrlResource(file.toUri())
+    fun load(objectKey: String): StoredFile {
+        ensureBucket()
 
-            if (resource.exists() || resource.isReadable) {
-                return resource
-            } else {
-                throw RuntimeException("Could not read the file!")
-            }
-        } catch (e: MalformedURLException) {
-            throw RuntimeException("Error: " + e.message)
-        }
+        val request = GetObjectRequest.builder()
+            .bucket(bucket)
+            .key(objectKey)
+            .build()
+        val response: ResponseBytes<GetObjectResponse> = s3Client.getObjectAsBytes(request)
+        val metadata = response.response()
+
+        return StoredFile(
+            resource = ByteArrayResource(response.asByteArray()),
+            contentType = metadata.contentType(),
+            contentLength = metadata.contentLength()
+        )
     }
+
+    private fun ensureBucket() {
+        if (bucketReady) {
+            return
+        }
+
+        try {
+            s3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build())
+        } catch (_: NoSuchBucketException) {
+            s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build())
+        }
+        bucketReady = true
+    }
+
 }
+
+data class StoredFile(
+    val resource: Resource,
+    val contentType: String?,
+    val contentLength: Long?,
+)

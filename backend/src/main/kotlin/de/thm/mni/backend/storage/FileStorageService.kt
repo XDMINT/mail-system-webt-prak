@@ -1,7 +1,6 @@
 package de.thm.mni.backend.storage
 
 import de.thm.mni.backend.attachment.dto.AttachmentDTO
-import org.springframework.core.io.Resource
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 
@@ -24,7 +23,7 @@ class FileStorageService(private val fileStorageRepository: FileStorageRepositor
         return fileStorageRepository.deleteFile(filename)
     }
 
-    fun load(filename: String): Resource {
+    fun load(filename: String): StoredFile {
         return fileStorageRepository.load(filename)
     }
 }

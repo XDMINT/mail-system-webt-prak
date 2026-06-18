@@ -31,7 +31,7 @@ export class MailEdit implements OnInit{
     this.mailsService.getMailById(id).subscribe({
       next: (mail) => {
         mail.attachments.forEach(attachment=>{
-          this.mailsService.fetchAttachment(attachment.path).subscribe({
+          this.mailsService.fetchAttachment(attachment.id).subscribe({
             next: (blob) => {
               attachment.url = URL.createObjectURL(blob);
               attachment.blob = blob;

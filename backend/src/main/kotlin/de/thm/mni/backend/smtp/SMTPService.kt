@@ -49,7 +49,10 @@ class SMTPService(
             helper.setText(mail.content, false)
 
             mail.attachments.forEach { attachment ->
-                helper.addAttachment(attachment.fileName ?: attachment.path, fileStorageService.load(attachment.path))
+                helper.addAttachment(
+                    attachment.fileName ?: attachment.path,
+                    fileStorageService.load(attachment.path).resource
+                )
             }
 
             javaMailSender.send(message)

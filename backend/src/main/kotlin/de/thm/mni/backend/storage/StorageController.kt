@@ -1,27 +1,59 @@
 package de.thm.mni.backend.storage
 
+import de.thm.mni.backend.attachment.AttachmentRepository
+import de.thm.mni.backend.error.ResourceNotFoundException
+import de.thm.mni.backend.mail_record.MailRecordService
 import org.springframework.core.io.Resource
+import org.springframework.http.ContentDisposition
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import java.nio.file.Files
-import java.nio.file.Paths
+import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 
 @RestController
-@RequestMapping("/api/images")
-class StorageController(private val fileStorageService: FileStorageService) {
-    @GetMapping("/{filename}")
-    fun getImage(@PathVariable filename: String): ResponseEntity<Resource> {
-        val file: Resource = fileStorageService.load(filename)
+@RequestMapping("/api/attachments")
+class StorageController(
+    private val fileStorageService: FileStorageService,
+    private val attachmentRepository: AttachmentRepository,
+    private val mailRecordService: MailRecordService,
+) {
+    @GetMapping("/{attachmentId}")
+    fun getAttachment(
+        @PathVariable attachmentId: UUID,
+        @AuthenticationPrincipal user: UserDetails,
+    ): ResponseEntity<Resource> {
+        val attachment = attachmentRepository.findById(attachmentId).orElse(null)
+            ?: throw ResourceNotFoundException("Attachment not found")
+        val mail = attachment.mail ?: throw ResourceNotFoundException("Attachment not found")
+        val userId = UUID.fromString(user.username)
+        val records = mail.id?.let { mailRecordService.getMailRecordByMailId(it) }.orEmpty()
+        val canAccess = mail.sender?.id == userId || records.any { it.user?.id == userId }
 
-        val contentType =  MediaType.parseMediaType(Files.probeContentType(Paths.get(file.uri)))
+        if (!canAccess) {
+            throw ResourceNotFoundException("Attachment not found")
+        }
+
+        val storedFile = fileStorageService.load(attachment.path)
+        val contentType = attachment.mimeType ?: storedFile.contentType ?: MediaType.APPLICATION_OCTET_STREAM_VALUE
 
         return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(contentType.toString()))
-            .body(file)
+            .contentType(MediaType.parseMediaType(contentType))
+            .contentLength(storedFile.contentLength ?: attachment.size)
+            .header(
+                HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.inline()
+                    .filename(attachment.fileName ?: attachment.path, StandardCharsets.UTF_8)
+                    .build()
+                    .toString()
+            )
+            .body(storedFile.resource)
     }
 }
