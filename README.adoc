@@ -354,6 +354,10 @@ project-root/
 
 * H2 Database
 
-== License
+== Licens
+image:https://img.shields.io/badge/License-MIT-yellow.svg[License: MIT, link=https://opensource.org/licenses/MIT]
 
+This project is licensed under the MIT License. See the link:LICENSE[LICENSE] file for more details.
 This project is part of a university project.
+
+
