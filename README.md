@@ -180,3 +180,12 @@ npm run build
 ```
 
 The frontend currently emits a known Angular bundle budget warning.
+
+## OpenAPI / Swagger
+
+Die API-Dokumentation ist im Backend ohne Login erreichbar:
+
+- `GET /v3/api-docs`
+- `GET /v3/api-docs.yaml`
+- `GET /swagger-ui/index.html`
+
