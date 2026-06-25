@@ -5,12 +5,20 @@ import de.thm.mni.backend.auth.dto.AuthResponse
 import de.thm.mni.backend.auth.dto.RegisterRequest
 import de.thm.mni.backend.error.InvalidCredentialsException
 import de.thm.mni.backend.error.ResourceAlreadyExistsException
+import de.thm.mni.backend.openapi.BadRequestApiError
+import de.thm.mni.backend.openapi.ConflictApiError
+import de.thm.mni.backend.openapi.ServerApiError
+import de.thm.mni.backend.openapi.UnauthorizedApiError
 import de.thm.mni.backend.security.JwtService
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.UserService
 import de.thm.mni.backend.user.dto.toDTO
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -19,14 +27,34 @@ import org.springframework.web.bind.annotation.RestController
 
 
 @RestController
+@Tag(
+    name = "Authentication",
+    description = "Register users, authenticate credentials, and issue JWT bearer tokens."
+)
 class AuthController(
     private val userService: UserService,
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService
 ) {
 
-    @PostMapping("/api/register")
+    @PostMapping(
+        "/api/register",
+        consumes = [MediaType.APPLICATION_JSON_VALUE],
+        produces = [MediaType.APPLICATION_JSON_VALUE]
+    )
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(
+        operationId = "registerUser",
+        summary = "Register a user",
+        description = "Creates a new internal user account and immediately returns a JWT bearer token for that user."
+    )
+    @ApiResponse(
+        responseCode = "201",
+        description = "User registered successfully."
+    )
+    @BadRequestApiError
+    @ConflictApiError
+    @ServerApiError
     fun register(@Valid @RequestBody data: RegisterRequest): AuthResponse {
         val existingUser = userService.existsUserByEmail(data.email)
 
@@ -49,7 +77,23 @@ class AuthController(
 
     }
 
-    @PostMapping("/api/login")
+    @PostMapping(
+        "/api/login",
+        consumes = [MediaType.APPLICATION_JSON_VALUE],
+        produces = [MediaType.APPLICATION_JSON_VALUE]
+    )
+    @Operation(
+        operationId = "loginUser",
+        summary = "Authenticate a user",
+        description = "Validates credentials and returns the authenticated user profile together with a JWT bearer token."
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "Authentication successful."
+    )
+    @BadRequestApiError
+    @UnauthorizedApiError
+    @ServerApiError
     fun login(@Valid @RequestBody data: LoginRequest): AuthResponse {
         val user = userService.getUserByEmail(data.email)
             ?: throw InvalidCredentialsException("Invalid credentials")
