@@ -87,6 +87,19 @@ services:
     depends_on:
       - backend
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    restart: unless-stopped
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    command: start-dev
+    ports:
+      - "9080:8080"
+    volumes:
+      - kc-data:/opt/keycloak/data
+
 volumes:
   db_data:
   seaweed_data:
+  kc-data:

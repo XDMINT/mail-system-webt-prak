@@ -1,6 +1,5 @@
 package de.thm.mni.backend.security
 
-import de.thm.mni.backend.error.AuthErrorHandler
 import de.thm.mni.backend.util.SaltPepperPasswordEncoder
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -9,12 +8,21 @@ import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.cors.CorsConfiguration
+import org.springframework.security.oauth2.jwt.JwtDecoder
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 
 
 @Configuration
 class SecurityConfig(@Value("\${app.secret}") private val pepper: String) {
+
+    @Bean
+    fun jwtDecoder(
+        @Value("\${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
+        issuer: String
+    ): JwtDecoder {
+        return NimbusJwtDecoder.withIssuerLocation(issuer).build()
+    }
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = SaltPepperPasswordEncoder(pepper)
@@ -37,20 +45,17 @@ class SecurityConfig(@Value("\${app.secret}") private val pepper: String) {
             .authorizeHttpRequests {
                 it.requestMatchers(
                     "/api/register",
-                    "/api/login",
                     "/v3/api-docs/**",
                     "/v3/api-docs.yaml",
                     "/swagger-ui/**",
-                    "/swagger-ui.html"
+                    "/swagger-ui.html",
+                    "/api/v1/**"
                 ).permitAll()
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 it.anyRequest().authenticated()
             }
-            .exceptionHandling {
-                it.authenticationEntryPoint(AuthErrorHandler())
+            .oauth2ResourceServer {
+                it.jwt { }
             }
-            .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter::class.java)
-            .formLogin { it.disable() }
-            .httpBasic { it.disable() }
             .build()
 }

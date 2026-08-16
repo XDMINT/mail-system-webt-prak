@@ -7,6 +7,9 @@ import { providePrimeNG } from 'primeng/config';
 import Aura from '@primeuix/themes/aura';
 import { authInterceptorInterceptor } from '../interceptors/auth-interceptor-interceptor';
 import { MessageService } from 'primeng/api';
+import { provideOAuthClient } from 'angular-oauth2-oidc';
+import { provideAppInitializer, inject } from '@angular/core';
+import {KeycloakService} from './services/auth/keycloak.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -22,5 +25,11 @@ export const appConfig: ApplicationConfig = {
       },
     }),
     MessageService,
+    provideOAuthClient(),
+
+    provideAppInitializer(async () => {
+      const keycloakService = inject(KeycloakService);
+      await keycloakService.init();
+    })
   ],
 };

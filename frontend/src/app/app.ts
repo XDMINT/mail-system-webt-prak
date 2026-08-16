@@ -1,5 +1,6 @@
-import { Component, signal } from '@angular/core';
+import {ApplicationConfig, Component, signal} from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { provideNgOpenapi } from './providers';
 
 @Component({
   selector: 'app-root',
@@ -10,3 +11,9 @@ import { RouterOutlet } from '@angular/router';
 export class App {
   protected readonly title = signal('frontend');
 }
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideNgOpenapi({ basePath: 'http://localhost/api/v1' })
+  ]
+};

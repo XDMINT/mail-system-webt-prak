@@ -37,6 +37,7 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin:3.1.2")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.0")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test:4.0.6")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.2.21")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.3")

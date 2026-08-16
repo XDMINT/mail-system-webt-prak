@@ -1,16 +1,16 @@
 import { inject, Injectable } from '@angular/core';
-import { AuthService } from './auth-service';
 import { CanActivate } from '@angular/router';
+import { KeycloakService } from '../../app/services/auth/keycloak.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthGuard implements CanActivate {
-  private authService = inject(AuthService);
+  private keycloakService = inject(KeycloakService);
 
-  public canActivate(): boolean {
-    if (this.authService.isAuthenticated()) {
+  canActivate(): boolean {
+    if (this.keycloakService.isLoggedIn) {
       return true;
     } else {
-      this.authService.logout();
+      this.keycloakService.login();
       return false;
     }
   }
