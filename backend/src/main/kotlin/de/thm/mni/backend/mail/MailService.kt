@@ -16,7 +16,6 @@ import de.thm.mni.backend.storage.FileStorageService
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.UserService
 import jakarta.transaction.Transactional
-import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
@@ -29,7 +28,6 @@ class MailService(
     private val smtpService: SMTPService,
     private val fileStorageService: FileStorageService,
     private val mailRecordService: MailRecordService,
-    private val passwordEncoder: PasswordEncoder,
 ){
     fun getMailById(id: UUID): Mail? {
         return mailRepository.findById(id).orElse(null)
@@ -176,7 +174,6 @@ class MailService(
                 firstName = "External",
                 lastName = "Sender",
                 email = email,
-                password = passwordEncoder.encode(UUID.randomUUID().toString()).toString(),
                 externalContact = true
             )
         )

@@ -1,48 +1,46 @@
-import { inject, Injectable } from '@angular/core';
-
 import { HttpClient } from '@angular/common/http';
+import { inject, Injectable, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../../constants';
-import { AuthResponse, LoginRequest, RegisterRequest } from '../../types/auth';
-import { Observable } from 'rxjs';
-import { ErrorResponse } from '../../types/error';
-import { Router } from '@angular/router';
+import { User } from '../../types/user';
+import { KeycloakService } from './keycloak-service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
-  private http = inject(HttpClient);
-  private router = inject(Router);
+  private readonly http = inject(HttpClient);
+  private readonly keycloak = inject(KeycloakService);
+  private readonly currentUserState = signal<User | null>(null);
 
-  public login(credentials: LoginRequest): Observable<AuthResponse | ErrorResponse> {
-   return this.http.post<AuthResponse | ErrorResponse>(`${API_BASE_URL}/login`, credentials);
+  public readonly currentUser = this.currentUserState.asReadonly();
 
+  public async initialize(): Promise<void> {
+    const authenticated = await this.keycloak.initialize();
+    if (authenticated) {
+      await this.loadCurrentUser();
+    }
   }
 
-  public register(credentials: RegisterRequest): Observable<AuthResponse | ErrorResponse> {
-    return this.http.post<AuthResponse | ErrorResponse>(
-      `${API_BASE_URL}/register`,
-      credentials,
-    );
-
+  public async login(returnUrl = '/mails'): Promise<void> {
+    await this.keycloak.login(returnUrl);
   }
 
-  public logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    this.router.navigate(['login']);
+  public async logout(): Promise<void> {
+    this.currentUserState.set(null);
+    await this.keycloak.logout();
   }
 
   public isAuthenticated(): boolean {
-    return !!localStorage.getItem('token');
+    return this.keycloak.isAuthenticated();
   }
 
-  public getToken(): string | null {
-    return localStorage.getItem('token');
+  public getCurrentUser(): User | null {
+    return this.currentUserState();
   }
 
-  public getCurrentUser() {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+  private async loadCurrentUser(): Promise<void> {
+    const user = await firstValueFrom(this.http.get<User>(`${API_BASE_URL}/users/me`));
+    this.currentUserState.set(user);
   }
 }

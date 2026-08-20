@@ -11,8 +11,7 @@ import de.thm.mni.backend.user.dto.toDTO
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.security.core.userdetails.UserDetails
-import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -27,13 +26,20 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/users")
-class UserController(private val userService: UserService, private val passwordEncoder: PasswordEncoder) {
+class UserController(
+    private val userService: UserService,
+    private val currentUserService: CurrentUserService,
+) {
 
 
     @GetMapping
     fun getAllUsers(): List<UserDTO> {
         return userService.getAllUsers().map { it -> it.toDTO() }
     }
+
+    @GetMapping("/me")
+    fun getCurrentUser(@AuthenticationPrincipal jwt: Jwt): UserDTO =
+        currentUserService.getOrProvision(jwt).toDTO()
 
     @GetMapping("/{id}")
     fun getUserById(@PathVariable id: UUID): UserDTO? {
@@ -48,7 +54,6 @@ class UserController(private val userService: UserService, private val passwordE
                 firstName = data.firstName?.takeIf { it.isNotBlank() } ?: "External",
                 lastName = data.lastName?.takeIf { it.isNotBlank() } ?: "User",
                 email = normalizedEmail,
-                password = passwordEncoder.encode(UUID.randomUUID().toString()).toString(),
                 externalContact = true
             )
         )
@@ -64,10 +69,11 @@ class UserController(private val userService: UserService, private val passwordE
     @PutMapping("/{id}")
     fun updateUser(@PathVariable id: UUID,
                    @Valid @RequestBody userData: UserUpdate,
-                   @AuthenticationPrincipal user: UserDetails): UserDTO? {
+                   @AuthenticationPrincipal jwt: Jwt): UserDTO? {
         val existingUser = userService.getUserById(id) ?: throw ResourceNotFoundException("User not found")
+        val currentUser = currentUserService.getOrProvision(jwt)
 
-        if(existingUser.id.toString() != user.username) {
+        if(existingUser.id != currentUser.id) {
             throw ResourceNotFoundException("User not found")
         }
 
@@ -81,8 +87,8 @@ class UserController(private val userService: UserService, private val passwordE
             firstName = userData.firstName,
             lastName = userData.lastName,
             email = userData.email,
-            password = existingUser.password,
-            externalContact = existingUser.externalContact
+            externalContact = existingUser.externalContact,
+            identityProviderSubject = existingUser.identityProviderSubject,
         )
         updatedUser.id = existingUser.id
 
@@ -92,9 +98,10 @@ class UserController(private val userService: UserService, private val passwordE
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun deleteUser(@PathVariable id: UUID, @AuthenticationPrincipal user: UserDetails) {
+    fun deleteUser(@PathVariable id: UUID, @AuthenticationPrincipal jwt: Jwt) {
         val existingUser = userService.getUserById(id) ?: throw ResourceNotFoundException("User not found")
-        if(existingUser.id.toString() != user.username) {
+        val currentUser = currentUserService.getOrProvision(jwt)
+        if(existingUser.id != currentUser.id) {
             throw ResourceNotFoundException("User not found")
         }
         userService.deleteUser(id)

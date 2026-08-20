@@ -1,363 +1,150 @@
-= Mail Server Application
+= THM Mail Support Application
 :toc:
 :toclevels: 3
 
-== Overview
+== Purpose and current scope
 
-The Mail Server Application is a web-based email client that allows users to send, receive, and manage emails
-through a modern web interface.
-The application communicates with the THM Mail Server using the SMTP and IMAP protocols.
-The frontend is implemented with Angular, while the backend is built with Spring Boot and Kotlin.
-Email attachments are stored in SeaweedFS, and application data is persisted in PostgreSQL.
-Automated tests use an H2 in-memory database.
+This repository contains a university project for a shared email-support application. Registered internal users can work with mails through an Angular client and a Spring Boot API. PostgreSQL stores business data and SeaweedFS provides S3-compatible attachment storage. SMTP and IMAP connect the application to the configurable support mailbox.
 
-== Features
+The current implementation includes the reproducible one-command build/start workflow and the Keycloak/OpenID Connect integration. Later assignment phases, including the final IMAP strategy, the explicit support reply flow, WAF/TLS/NIDS, linting and C4 documentation, remain tracked in `PROJEKTPLAN.md`. This document does not claim those phases are already complete.
 
-* User authentication
-* Sending emails via SMTP
-* Receiving and reading emails via IMAP
-* Inbox management
-* Uploading and downloading email attachments
-* Storage of attachments in SeaweedFS
-* REST API for frontend-backend communication
-* Containerized infrastructure using Docker
+== Technology stack
 
-== Architecture
-
-The application follows a client-server architecture.
-....
-+----------------+
-| Angular Client |
-+----------------+
-         |
-         | REST API
-         v
-+----------------------+
-| Spring Boot Backend  |
-|       (Kotlin)       |
-+----------------------+
-      |           |
-      |           |
-      v           v
-+-----------+  +-----------+
-| PostgreSQL|  | SeaweedFS |
-+-----------+  +-----------+
-                    ^
-                    |
-             Email Attachments
-      |
-      v
-+----------------+
-| THM Mail Server|
-+----------------+
-     SMTP / IMAP
-
-Tests:
-|
-+--> H2 In-Memory Database
-....
-
-=== Frontend
-
-The frontend is implemented using Angular and provides the graphical user interface for email management.
-
-=== Backend
-
-* The backend is implemented using Spring Boot and Kotlin.
-* It handles business logic, user management, communication with the mail server, and interaction with storage systems.
-
-=== Mail Communication
-
-The application communicates with the THM Mail Server using:
-
-* SMTP (Simple Mail Transfer Protocol) for sending emails
-* IMAP (Internet Message Access Protocol) for retrieving and managing emails
-
-=== Data Storage
-
-* PostgreSQL is used as the database for persistent application data.
-* SeaweedFS is used for storing email attachments separately from application data.
-
-* H2 is used for testing as an in-memory database.
-
-== Technologies
-
-=== Frontend
-
-* Angular
-* TypeScript
-* Node.js
-
-=== Backend
-
-* Spring Boot
-* Kotlin
-* Gradle
-
-=== Infrastructure
-
-* Docker
+* Angular, TypeScript, PrimeNG and Tailwind CSS
+* Kotlin, Spring Boot, Spring Security and Spring Data JPA
+* Gradle monorepo with a downloaded Node.js/npm toolchain
+* Keycloak and OpenID Connect
 * PostgreSQL
-* SeaweedFS
+* SeaweedFS with its S3-compatible API
+* Caddy and Docker Compose
+* H2 for backend tests and Vitest through Angular for frontend tests
 
-=== Testing
+== Authentication and authorization
 
-* H2 Database
+Keycloak is the only identity provider. Docker Compose imports the `mail-system` realm, the public `mail-system-frontend` client and five development users from `keycloak/mail-system-realm.json`.
 
-== Prerequisites
+The Angular client uses the official Keycloak JavaScript adapter and Authorization Code Flow with PKCE `S256`. Tokens stay in the adapter's in-memory state and are refreshed before protected API calls. The Spring Boot backend is a stateless OAuth2 resource server and validates the token signature, expiration and issuer using the configured realm and JWK set.
 
-Before running the application, make sure the following software is installed:
+Local business profiles contain no password. They are linked to Keycloak through the stable OIDC `sub` claim. Local login, registration, password encoding, an application-specific JWT service and a parallel LDAP integration are not used.
 
-* Java 21
-* Gradle
-* Node.js
-* npm
-* Angular CLI
-* Docker
-* Docker Compose
+The following imported users all use the development password `demo-password`:
 
-Verify your installation:
+[cols="2,3",options="header"]
+|===
+|Name |Login
+|Ameline Allanson |`aallanson@example.com`
+|Sanson Vardey |`svardey1@example.com`
+|Jami Poe |`jpoe@example.uk`
+|Trent Ianno |`tianno3@example.com`
+|Alikee Raisbeck |`araisbeck4@example.com`
+|===
+
+Keycloak deliberately uses `start-dev` for the local course demonstrator. TLS termination with the supplied self-signed WAF approach belongs to the separate security-infrastructure phase.
+
+== Production-style container build and start
+
+=== Prerequisites
+
+* Docker with Docker Compose
+* JDK 25 (the backend's configured Gradle toolchain)
+
+No global Gradle, Node.js, npm, PostgreSQL or Keycloak installation is required.
+
+=== Configuration
+
+All Compose settings have usable local defaults. Copy `.env.example` to `.env` only when values must be overridden, especially for SMTP and IMAP. `.env` and real credentials must not be committed.
+
+=== One command
+
+On Windows:
+
+[source,powershell]
+----
+.\gradlew.bat composeUp
+----
+
+On Linux or macOS:
 
 [source,bash]
 ----
-java --version
-gradle --version
-node --version
-npm --version
-docker --version
-docker compose version
+./gradlew composeUp
 ----
 
-== Setup
+The task installs locked frontend dependencies with `npm ci`, runs backend and frontend tests, creates the Angular production output, builds the container images and starts the complete Compose stack. The application is available at http://localhost.
 
-=== Configure Environment
+Stop all services without deleting persistent data:
 
-Create the required configuration files and provide credentials for:
-
-* THM Mail Server
-* PostgreSQL
-* SeaweedFS
-
-Refer to the project configuration files for the required environment variables.
-
-== Environment variables
-
-=== Backend
-
-These variables are read via `${ENV_VAR:default}` (defaults shown in parentheses):
-
-- `DB_URL` (default: `jdbc:h2:mem:testdb`)
-- `DB_DRIVER` (default: `org.h2.Driver`)
-- `DB_USER` (default: `dbuser`)
-- `DB_PASSWORD` (default: `password`)
-- `DB_DDL_AUTO` (default: `create-drop`)
-
-- `APP_SECRET` (default: `default_secret_key`)
-- `APP_NAME` (default: `MyApp`)
-- `APP_JWT_EXPIRES` (default: `3600`) — seconds
-- `APP_JWT_SECRET` (default: `jwt_secret_key`)
-
-- `FILE_UPLOAD_DIR` (default: `uploads`)
-
-===Mail (SMTP / IMAP)
-
-**SMTP (Outbound)** — for sending mails from the support inbox to all registered users:
-
-- `SPRING_MAIL_HOST` (default: `""` — empty, disables SMTP)
-- `SPRING_MAIL_PORT` (default: `465`)
-- `SPRING_MAIL_USERNAME` — your THM email or mail account
-- `SPRING_MAIL_PASSWORD` — corresponding password
-- `MAIL_FROM_ADDRESS` (default: uses `SPRING_MAIL_USERNAME`)
-
-**IMAP (Inbound)** — for polling external mail inbox (e.g., THM support mailbox):
-
-- `MAIL_IMAP_HOST` (default: `""` — empty, disables IMAP polling)
-- `MAIL_IMAP_PORT` (default: `993`)
-- `MAIL_IMAP_USERNAME` — your THM email or mail account
-- `MAIL_IMAP_PASSWORD` — corresponding password
-- `MAIL_IMAP_FOLDER` (default: `INBOX`)
-- `MAIL_IMAP_POLL_INTERVAL_MS` (default: `300000` — 5 minutes)
-
-**Docker Compose**
-
-Used to configure the Postgres container:
-
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_NAME`
-
-===Example `.env`
-
-```env
-# -------------------------
-# Database (Docker Compose)
-# -------------------------
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=mail_project
-
-# -------------------------
-# Backend datasource config
-# -------------------------
-# For local Postgres (matches docker-compose port mapping 5432:5432)
-DB_URL=jdbc:postgresql://localhost:5432/mail_project
-DB_DRIVER=org.postgresql.Driver
-
-# JPA schema strategy (dev vs prod)
-DB_DDL_AUTO=update
-
-# -------------------------
-# App / JWT
-# -------------------------
-APP_NAME=mail-project
-APP_SECRET=change_me_super_secret
-APP_JWT_EXPIRES=3600
-APP_JWT_SECRET=change_me_jwt_secret
-
-# -------------------------
-# File uploads
-# -------------------------
-FILE_UPLOAD_DIR=uploads
-
-# -------------------------
-# SMTP Outbound Mail (Support Notifications)
-# -------------------------
-SPRING_MAIL_HOST=mailgate.thm.de
-SPRING_MAIL_PORT=465
-SPRING_MAIL_USERNAME=your-thm-email@student.thm.de
-SPRING_MAIL_PASSWORD=your-thm-password
-MAIL_FROM_ADDRESS=your-thm-email@student.thm.de
-
-# -------------------------
-# IMAP Inbound Mail (External Mailbox Polling)
-# -------------------------
-MAIL_IMAP_HOST=mailgate.thm.de
-MAIL_IMAP_PORT=993
-MAIL_IMAP_USERNAME=your-thm-email@student.thm.de
-MAIL_IMAP_PASSWORD=your-thm-password
-MAIL_IMAP_FOLDER=INBOX
-MAIL_IMAP_POLL_INTERVAL_MS=300000
-```
-
-== Running the Infrastructure
-
-Start PostgreSQL and SeaweedFS using Docker Compose:
-
-[source,bash]
+[source,powershell]
 ----
-docker compose up -d
+.\gradlew.bat composeDown
 ----
-Verify that all containers are running:
 
-[source,bash]
-----
-docker ps
-----
-== Running the Backend
+== Development build
 
-Navigate to the backend directory:
+Run the backend tests, frontend tests and frontend production build without starting containers:
 
-[source,bash]
+[source,powershell]
 ----
-cd backend
+.\gradlew.bat :backend:test :frontend:test :frontend:build
 ----
-Start the Spring Boot application:
 
-[source,bash]
-----
-./gradlew bootRun
-----
-The backend will be available at:
-http://localhost:8080
-
-== Running the Frontend
-
-Navigate to the frontend directory:
+For Angular live development, first start the Compose stack, then run:
 
 [source,bash]
 ----
 cd frontend
+npm ci
+npm start
 ----
 
-Install dependencies:
+The configured Angular development proxy forwards `/api`, `/auth`, `/v3/api-docs` and `/swagger-ui` to http://localhost. The development UI is available at http://localhost:4200.
 
-[source,bash]
-npm install
+== Runtime services
 
-Start the Angular development server:
+[cols="2,4",options="header"]
+|===
+|Service |Responsibility
+|`frontend` |Caddy, Angular static files and the single public local port 80
+|`backend` |REST API, business logic, SMTP/IMAP and S3 access
+|`keycloak` |OIDC realm, login and access tokens
+|`database` |PostgreSQL persistence
+|`seaweedfs` |S3-compatible attachment storage
+|===
 
-[source,bash]
-ng serve
+Caddy routes `/auth/*` to Keycloak and `/api/*`, `/v3/api-docs*` and `/swagger-ui*` to the backend. Backend, database, Keycloak and SeaweedFS are not directly published to the host.
 
-The frontend will be available at:
-http://localhost:4200
+== Configuration groups
 
-== Development
+The complete list with safe local defaults is maintained in `.env.example`.
 
-=== Backend Development
+* `DB_*`: PostgreSQL database, username, password and schema behavior
+* `KEYCLOAK_*`, `OIDC_*`: development administrator, public URL, issuer, JWK set and discovery URL
+* `APP_CORS_ALLOWED_ORIGINS`: explicit local browser origins
+* `STORAGE_S3_*`: SeaweedFS endpoint, bucket, region and credentials
+* `SPRING_MAIL_*`, `MAIL_FROM_ADDRESS`, `MAIL_REPLY_TO_ADDRESS`: SMTP settings
+* `MAIL_IMAP_*`: IMAP settings and polling behavior
 
-Build the backend:
-[source,bash]
- ./gradlew build
+SMTP and IMAP are disabled when the corresponding required host or credentials are empty, so the example application remains directly usable without real THM secrets.
 
-Run all tests:
-[source,bash]
- ./gradlew test
+== OpenAPI
 
-=== Frontend Development
+The backend generates the current API description at startup. Its global security declaration references the Keycloak OpenID Connect discovery endpoint.
 
-run Frontend:
-[source,bash]
-cd frontend
-npm install
-npm run build
+* Swagger UI: http://localhost/swagger-ui/index.html
+* JSON: http://localhost/v3/api-docs
+* YAML: http://localhost/v3/api-docs.yaml
 
-== Project Structure
+The documentation endpoints are public. Application endpoints below `/api/**` require a valid Keycloak access token.
+
+== Repository structure
 
 ....
-project-root/
-├── backend/
-│   ├── src/
-│   ├── build.gradle.kts
-│   └── ...
-│
-├── frontend/
-│   ├── src/
-│   ├── package.json
-│   └── ...
-│
-├── gradle/
-├── docker-compose.yml
-└── README.adoc
+backend/                 Spring Boot source and tests
+frontend/                Angular source, tests and Docker build
+keycloak/                Realm, OIDC client and development users
+docker-compose.yml       Complete local stack
+.env.example             Non-secret configuration reference
+PROJEKTPLAN.md           Verified decisions, status and remaining work
 ....
 
-== Dependencies
-
-=== Runtime Dependencies
-
-* Spring Boot
-* Kotlin
-* Angular
-* PostgreSQL
-* SeaweedFS
-* Docker
-
-=== Development Dependencies
-
-* Java 21
-* Gradle
-* Node.js
-* npm
-* Angular CLI
-
-=== Test Dependencies
-
-* H2 Database
-
-== Licens
-image:https://img.shields.io/badge/License-MIT-yellow.svg[License: MIT, link=https://opensource.org/licenses/MIT]
-
-This project is licensed under the MIT License. See the link:LICENSE[LICENSE] file for more details.
-This project is part of a university project.
-
-
+The local `.codex/` and `folien/` directories remain untouched and are deliberately not added to `.gitignore`. The C4 model will be added in its separately agreed work package.

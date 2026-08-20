@@ -20,13 +20,6 @@ class ErrorHandler {
         return ResponseEntity<AppError>(error, HttpStatus.NOT_FOUND)
     }
 
-    @ExceptionHandler(InvalidCredentialsException::class)
-    fun handleInvalidCredentialsException(err: InvalidCredentialsException): ResponseEntity<AppError> {
-        log.error("Invalid credentials exception: ${err.message}")
-        val error = AppError(HttpStatus.UNAUTHORIZED.value(), err.message)
-        return ResponseEntity<AppError>(error, HttpStatus.UNAUTHORIZED)
-    }
-
     @ExceptionHandler(ResourceAlreadyExistsException::class)
     fun handleResourceAlreadyExistsException(err: ResourceAlreadyExistsException): ResponseEntity<AppError> {
         log.error("Resource already exists: ${err.message}")
@@ -55,7 +48,7 @@ class ErrorHandler {
         log.error("An unexpected error occurred: ${e.message}", e)
         val error = AppError(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            "Internal server error: " + e.message
+            "Internal server error"
         )
         return ResponseEntity<AppError>(error, HttpStatus.INTERNAL_SERVER_ERROR)
     }

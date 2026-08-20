@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { SideNavigation } from './side-navigation';
 
@@ -8,7 +9,8 @@ describe('SideNavigation', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SideNavigation]
+      imports: [SideNavigation],
+      providers: [provideRouter([])],
     })
     .compileComponents();
 

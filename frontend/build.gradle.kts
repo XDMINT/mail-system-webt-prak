@@ -12,10 +12,24 @@ node {
   npmVersion = "11.6.2"
 }
 
-tasks.register<com.github.gradle.node.npm.task.NpmTask>("build") {
+val npmCi by tasks.registering(NpmTask::class) {
+  group = "build setup"
+  dependsOn("npmSetup")
+  args.set(listOf("ci"))
+  workingDir.set(project.projectDir)
+}
+
+tasks.register<NpmTask>("build") {
   group = "build"
-  dependsOn("npmSetup", "npmInstall")
+  dependsOn(npmCi)
   args.set(listOf("run", "build"))
+  workingDir.set(project.projectDir)
+}
+
+tasks.register<NpmTask>("test") {
+  group = "verification"
+  dependsOn(npmCi)
+  args.set(listOf("test", "--", "--watch=false"))
   workingDir.set(project.projectDir)
 }
 

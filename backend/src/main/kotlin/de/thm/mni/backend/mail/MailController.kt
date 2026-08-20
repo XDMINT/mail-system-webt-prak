@@ -10,13 +10,13 @@ import de.thm.mni.backend.mail.dto.toMailCreate
 import de.thm.mni.backend.mail.dto.toMailUpdate
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail_record.MailRecordService
-import de.thm.mni.backend.user.UserService
+import de.thm.mni.backend.user.CurrentUserService
 import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
@@ -25,23 +25,21 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/mails")
 class MailController(private val mailService: MailService,
-                     private val userService: UserService,
+                     private val currentUserService: CurrentUserService,
                      private val mailRecordService: MailRecordService,
                      private val mailMapper: MailMapper
     ) {
 
     @GetMapping("/drafts")
-    fun getCreatedMails(@AuthenticationPrincipal user: UserDetails): List<MailDTO> {
-        val userId = UUID.fromString(user.username)
-        val user = userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
+    fun getCreatedMails(@AuthenticationPrincipal jwt: Jwt): List<MailDTO> {
+        val user = currentUserService.getOrProvision(jwt)
         val userMails =  mailService.getAllCreatedUserMails(user)
         return userMails.map { mail -> mailMapper.toDTO(user, mail) }
     }
 
     @GetMapping("/sent")
-    fun getSentMails(@AuthenticationPrincipal user: UserDetails): List<MailDTO> {
-        val userId = UUID.fromString(user.username)
-        val user = userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
+    fun getSentMails(@AuthenticationPrincipal jwt: Jwt): List<MailDTO> {
+        val user = currentUserService.getOrProvision(jwt)
         val userMails =  mailService.getAllSentUserMails(user)
         return userMails.map { mail -> mailMapper.toDTO(user, mail) }
 
@@ -51,10 +49,9 @@ class MailController(private val mailService: MailService,
     @ResponseStatus(HttpStatus.CREATED)
     fun createMail(@Valid @RequestPart("data") data: MailRequest,
                    @RequestPart("attachments") attachments: List<MultipartFile>,
-                   @AuthenticationPrincipal user: UserDetails): MailDTO
+                   @AuthenticationPrincipal jwt: Jwt): MailDTO
     {
-        val userId = UUID.fromString(user.username)
-        val user = userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
+        val user = currentUserService.getOrProvision(jwt)
 
         val createdMail = mailService.createMail(data.toMailCreate(), user, attachments)
         return mailMapper.toDTO(user, createdMail)
@@ -62,12 +59,11 @@ class MailController(private val mailService: MailService,
 
     @GetMapping("/incoming")
     fun getIncomingMailsForUser(
-        @AuthenticationPrincipal user: UserDetails,
+        @AuthenticationPrincipal jwt: Jwt,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "25") size: Int,
     ): PageResponse<MailListItemDTO> {
-        val userId = UUID.fromString(user.username)
-        userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
+        val userId = currentUserService.getOrProvision(jwt).id!!
 
         val safePage = page.coerceAtLeast(0)
         val safeSize = size.coerceIn(1, 100)
@@ -84,8 +80,8 @@ class MailController(private val mailService: MailService,
     }
 
     @GetMapping("/{mailId}")
-    fun getMailById(@PathVariable mailId: UUID, @AuthenticationPrincipal user: UserDetails): MailDTO {
-        val user = userService.getUserById(UUID.fromString(user.username)) ?: throw ResourceNotFoundException("User not found")
+    fun getMailById(@PathVariable mailId: UUID, @AuthenticationPrincipal jwt: Jwt): MailDTO {
+        val user = currentUserService.getOrProvision(jwt)
         val mail = mailService.getMailById(mailId) ?: throw ResourceNotFoundException("Mail not found")
         val records = mailRecordService.getMailRecordByMailId(mail.id!!)
 
@@ -100,10 +96,10 @@ class MailController(private val mailService: MailService,
     fun updateMail(@PathVariable mailId: UUID,
                    @Valid @RequestPart("data") mail: MailRequest,
                    @RequestPart("attachments") attachments: List<MultipartFile>,
-                   @AuthenticationPrincipal user: UserDetails): MailDTO
+                   @AuthenticationPrincipal jwt: Jwt): MailDTO
     {
-        val userId = UUID.fromString(user.username)
-        val user = userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
+        val user = currentUserService.getOrProvision(jwt)
+        val userId = user.id!!
         val existingMail = mailService.getMailById(mailId) ?: throw ResourceNotFoundException("Mail not found")
 
         if (existingMail.sender!!.id != userId) {
@@ -120,8 +116,8 @@ class MailController(private val mailService: MailService,
 
     @DeleteMapping("/{mailId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun deleteMail(@PathVariable mailId: UUID, @AuthenticationPrincipal user: UserDetails) {
-        val userId = UUID.fromString(user.username)
+    fun deleteMail(@PathVariable mailId: UUID, @AuthenticationPrincipal jwt: Jwt) {
+        val userId = currentUserService.getOrProvision(jwt).id!!
         val existingMail = mailService.getMailById(mailId) ?: throw ResourceNotFoundException("Mail not found")
         if (existingMail.sender!!.id != userId) {
             throw ResourceNotFoundException("Mail not found")
@@ -130,8 +126,8 @@ class MailController(private val mailService: MailService,
     }
 
     @PostMapping("/send/{mailId}")
-    fun sendMail(@PathVariable mailId: UUID, @AuthenticationPrincipal user: UserDetails) {
-        val userId = UUID.fromString(user.username)
+    fun sendMail(@PathVariable mailId: UUID, @AuthenticationPrincipal jwt: Jwt) {
+        val userId = currentUserService.getOrProvision(jwt).id!!
         val existingMail = mailService.getMailById(mailId) ?: throw ResourceNotFoundException("Mail not found")
         if (existingMail.sender!!.id != userId) {
             throw ResourceNotFoundException("Mail not found")
@@ -142,9 +138,8 @@ class MailController(private val mailService: MailService,
     @PostMapping("/send")
     fun createAndSendMail(@Valid @RequestPart("data") data: MailRequest,
                           @RequestPart("attachments") attachments: List<MultipartFile>,
-                          @AuthenticationPrincipal user: UserDetails): MailDTO {
-        val userId = UUID.fromString(user.username)
-        val user = userService.getUserById(userId) ?: throw ResourceNotFoundException("User not found")
+                          @AuthenticationPrincipal jwt: Jwt): MailDTO {
+        val user = currentUserService.getOrProvision(jwt)
 
         val createdMail = mailService.createAndSendMail(data.toMailCreate(), user, attachments)
         return mailMapper.toDTO(user, createdMail)

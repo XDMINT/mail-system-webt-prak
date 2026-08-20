@@ -1,191 +1,129 @@
 # THM Web-Technologies Mail Project
 
-Full-stack web application for managing mails with:
+University project for a shared mail-support application. The current stack consists of:
 
-- **Backend:** Kotlin + Spring Boot, Spring Security, Spring Data JPA, Validation, JWT
-- **Frontend:** Angular + PrimeNG + TailwindCSS
-- **Database:** PostgreSQL via Docker Compose
-- **Attachment storage:** SeaweedFS with S3-compatible API
+- Kotlin, Spring Boot, Spring Security and Spring Data JPA
+- Angular, PrimeNG and Tailwind CSS
+- Keycloak with OpenID Connect Authorization Code Flow and PKCE
+- PostgreSQL and SeaweedFS (S3-compatible attachment storage)
+- Docker Compose and Caddy as the local web entry point
 
-## Repository Layout
+The repository is a Gradle monorepo. The detailed implementation plan and the distinction between completed and pending assignment items are documented in `PROJEKTPLAN.md`. C4 documentation is intentionally handled separately.
 
-- `backend/` - Spring Boot Kotlin service
-- `frontend/` - Angular application
-- `docker-compose.yml` - local application stack
-- `seaweedfs-s3.json` - local SeaweedFS S3 credentials/configuration
+## Prerequisites
 
-## Local Setup
+- Docker Desktop or Docker Engine with Docker Compose
+- JDK 25 (the backend's configured Gradle toolchain)
 
-Create a `.env` file in the repository root, next to `docker-compose.yml`.
+Node.js, npm, Gradle, PostgreSQL and Keycloak do not have to be installed globally. The Gradle build downloads the configured Node/npm versions and Docker Compose runs the infrastructure.
 
-Required local values:
+## Configure
 
-```env
-# Database
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=mail_project
-DB_DDL_AUTO=update
-
-# App / JWT
-APP_NAME=mail-project
-APP_SECRET=change_me_super_secret
-APP_JWT_EXPIRES=3600
-APP_JWT_SECRET=change_me_jwt_secret
-
-# SeaweedFS / S3 storage
-STORAGE_S3_ENDPOINT=http://seaweedfs:8333
-STORAGE_S3_BUCKET=mail-attachments
-STORAGE_S3_REGION=us-east-1
-STORAGE_S3_ACCESS_KEY=mail-system
-STORAGE_S3_SECRET_KEY=mail-system-secret
-
-# SMTP outbound mail
-SPRING_MAIL_HOST=mailgate.thm.de
-SPRING_MAIL_PORT=465
-SPRING_MAIL_USERNAME=your-thm-email@student.thm.de
-SPRING_MAIL_PASSWORD=your-thm-password
-MAIL_FROM_ADDRESS=your-thm-email@student.thm.de
-MAIL_REPLY_TO_ADDRESS=your-thm-email@student.thm.de
-
-# IMAP inbound mail
-MAIL_IMAP_HOST=mailgate.thm.de
-MAIL_IMAP_PORT=993
-MAIL_IMAP_USERNAME=your-thm-email@student.thm.de
-MAIL_IMAP_PASSWORD=your-thm-password
-MAIL_IMAP_FOLDER=INBOX
-MAIL_IMAP_POLL_INTERVAL_MS=5000
-MAIL_IMAP_RECENT_WINDOW_SIZE=50
-```
-
-Do not commit `.env`. It is ignored by Git.
-
-## Start
-
-Use Docker Compose as the primary local setup:
+The application has local development defaults and starts without a `.env` file. To configure SMTP/IMAP or override defaults:
 
 ```bash
-docker compose up -d --build
+cp .env.example .env
 ```
 
-Open the application at:
+On Windows PowerShell:
 
-```text
-http://localhost
+```powershell
+Copy-Item .env.example .env
 ```
 
-The backend and database are not exposed directly to the host. Caddy in the frontend container proxies `/api/*` to the backend.
+Never commit `.env` or real THM credentials.
 
-## SeaweedFS
+## Build, verify and start with one command
 
-Attachments are stored in SeaweedFS through its S3-compatible API.
+Windows:
 
-In Docker Compose:
-
-- SeaweedFS runs as service `seaweedfs`
-- the backend talks to `http://seaweedfs:8333`
-- the default bucket is `mail-attachments`
-- credentials are defined in `seaweedfs-s3.json` and mirrored through `.env`
-
-Attachment metadata remains in PostgreSQL. The binary file content is stored in SeaweedFS under keys like:
-
-```text
-attachments/<uuid>.<extension>
+```powershell
+.\gradlew.bat composeUp
 ```
 
-Downloads go through the backend endpoint:
-
-```text
-GET /api/attachments/{attachmentId}
-```
-
-The endpoint checks whether the authenticated user is the sender or has a mail record for the mail before returning the file.
-
-## Mail Import
-
-### IMAP
-
-The backend polls the configured IMAP inbox.
-
-Behavior:
-
-1. The first successful sync imports all messages from the configured folder.
-2. Later syncs inspect the most recent messages from the configured folder.
-3. The IMAP folder is opened read-only, so read/unread state is not changed by the import.
-4. Messages are deduplicated by `Message-ID`.
-5. Imported external mails are assigned to all internal app users.
-6. External senders are stored as contacts with `externalContact=true`.
-7. Attachments are uploaded to SeaweedFS during import.
-
-`MAIL_IMAP_POLL_INTERVAL_MS` controls how often the backend checks the mailbox. `MAIL_IMAP_RECENT_WINDOW_SIZE` controls how many recent messages are checked after the initial import. The backend deduplicates by `Message-ID`, so already imported messages are skipped. This keeps replies importable even if they were already opened on another device.
-
-If `MAIL_IMAP_HOST`, `MAIL_IMAP_USERNAME`, or `MAIL_IMAP_PASSWORD` is empty, IMAP polling is disabled.
-
-### SMTP
-
-SMTP is used for outbound mails. Configure `SPRING_MAIL_*`, `MAIL_FROM_ADDRESS`, and optionally `MAIL_REPLY_TO_ADDRESS` in `.env`.
-
-`MAIL_REPLY_TO_ADDRESS` must be a complete email address and should point to the mailbox that IMAP imports, for example `jfdr91@mailserv.fh-giessen.de`. If it is omitted, the backend does not set a `Reply-To` header and replies go to the configured `From` address.
-
-## Ticket Tracking
-
-Imported external mails receive a tracking code in the subject:
-
-```text
-[TICKET-XXXXXXXX]
-```
-
-Existing ticket prefixes are reused. This keeps replies grouped by the same tracking code.
-
-## Shared Support Inbox
-
-Imported external mails are visible to all internal app users. External contacts are kept out of the visible recipient lists in the mail detail view.
-
-## Reset Local Data
-
-To reset PostgreSQL and SeaweedFS and trigger a fresh initial IMAP import:
+Linux/macOS:
 
 ```bash
-docker compose down -v
-docker compose up -d --build
+./gradlew composeUp
 ```
 
-This deletes local database and attachment storage volumes.
+This one command:
 
-## Seed Users
+1. installs frontend dependencies reproducibly with `npm ci`;
+2. runs the backend and frontend tests;
+3. creates the Angular production build;
+4. builds the backend and frontend container images;
+5. starts PostgreSQL, SeaweedFS, Keycloak, backend and frontend with Docker Compose.
 
-Development users from `backend/src/main/resources/data.json`:
+Open the application at <http://localhost>. Stop the stack with:
 
-| # | First name | Last name | Email | Password |
-|---:|------------|-----------|-------|----------|
-| 1 | Ameline | Allanson | `aallanson@example.com` | `123456` |
-| 2 | Sanson | Vardey | `svardey1@example.com` | `123456` |
-| 3 | Jami | Poe | `jpoe@example.uk` | `123456` |
-| 4 | Trent | Ianno | `tianno3@example.com` | `123456` |
-| 5 | Alikee | Raisbeck | `araisbeck4@example.com` | `123456` |
-
-## Build And Checks
-
-Backend:
-
-```bash
-./gradlew.bat :backend:test
+```powershell
+.\gradlew.bat composeDown
 ```
 
-Frontend:
+## Keycloak login
+
+Authentication is performed exclusively by the `mail-system` Keycloak realm. The frontend is a public OIDC client named `mail-system-frontend` and uses Authorization Code Flow with PKCE (`S256`). The backend accepts signed access tokens from this realm as a stateless OAuth2 resource server.
+
+The imported development users all use the password `demo-password`:
+
+| Name | Login |
+| --- | --- |
+| Ameline Allanson | `aallanson@example.com` |
+| Sanson Vardey | `svardey1@example.com` |
+| Jami Poe | `jpoe@example.uk` |
+| Trent Ianno | `tianno3@example.com` |
+| Alikee Raisbeck | `araisbeck4@example.com` |
+
+The users are initialized both in Keycloak and as passwordless local business profiles with matching stable OIDC subjects. Local login, local registration, application passwords and application-issued JWTs are intentionally not present.
+
+For this local university demonstrator Keycloak runs with `start-dev` behind Caddy over HTTP. TLS termination at the self-signed WAF is a separate assignment phase.
+
+## Local development
+
+The full Compose stack should be running so that PostgreSQL, SeaweedFS, Keycloak and the backend are available. To use Angular's development server:
 
 ```bash
 cd frontend
-npm run build
+npm ci
+npm start
 ```
 
-The frontend currently emits a known Angular bundle budget warning.
+The development proxy forwards `/api`, `/auth` and the OpenAPI routes to the Compose entry point. Open <http://localhost:4200>.
 
-## OpenAPI / Swagger
+Useful verification commands:
 
-Die API-Dokumentation ist im Backend ohne Login erreichbar:
+```powershell
+.\gradlew.bat :backend:test :frontend:test :frontend:build
+docker compose config
+docker compose ps
+```
 
-- `GET /v3/api-docs`
-- `GET /v3/api-docs.yaml`
-- `GET /swagger-ui/index.html`
+The Angular production build currently reports its pre-existing initial-bundle budget warning; the build still succeeds.
 
+## OpenAPI
+
+The backend generates its OpenAPI description from the running code. It includes the Keycloak OpenID Connect discovery URL as its authentication scheme.
+
+- Swagger UI: <http://localhost/swagger-ui/index.html>
+- JSON: <http://localhost/v3/api-docs>
+- YAML: <http://localhost/v3/api-docs.yaml>
+
+The OpenAPI endpoints are public; application API endpoints under `/api/**` require a valid Keycloak access token.
+
+## SMTP and IMAP
+
+SMTP and IMAP are optional for the local demo and are disabled when their hosts or credentials are empty. Configure them only in the local `.env`; all supported values are listed in `.env.example`.
+
+The current IMAP behavior and its required upcoming adjustment are tracked in `PROJEKTPLAN.md`. It is not part of the completed Keycloak/build phase.
+
+## Repository layout
+
+- `backend/` — Spring Boot application and tests
+- `frontend/` — Angular application, tests and self-contained container build
+- `keycloak/` — reproducible development realm, OIDC client and demo users
+- `docker-compose.yml` — complete local application stack
+- `.env.example` — non-secret configuration reference
+- `PROJEKTPLAN.md` — verified decisions, status and remaining assignment phases
+
+The local `.codex/` and `folien/` directories are deliberately left untouched and are not added to `.gitignore`.

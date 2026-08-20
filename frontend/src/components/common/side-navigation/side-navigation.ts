@@ -28,6 +28,6 @@ export class SideNavigation {
   }
 
   logout(){
-    this.authService.logout()
+    void this.authService.logout();
   }
 }

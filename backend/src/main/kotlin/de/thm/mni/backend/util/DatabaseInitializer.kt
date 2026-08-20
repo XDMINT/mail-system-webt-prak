@@ -12,7 +12,6 @@ import de.thm.mni.backend.util.dto.SeedData
 import org.springframework.boot.CommandLineRunner
 import org.springframework.core.io.ClassPathResource
 import org.slf4j.LoggerFactory
-import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.core.type.TypeReference
@@ -24,7 +23,6 @@ class DatabaseInitializer(
     private val userRepository: UserRepository,
     private val mailRepository: MailRepository,
     private val mailRecordRepository: MailRecordRepository,
-    private val passwordEncoder: PasswordEncoder
 ): CommandLineRunner {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -47,7 +45,7 @@ class DatabaseInitializer(
                             firstName = dto.firstName,
                             lastName = dto.lastName,
                             email = dto.email,
-                            password = passwordEncoder.encode(dto.password).toString()
+                            identityProviderSubject = dto.identityProviderSubject,
                         )
                     )
                 }

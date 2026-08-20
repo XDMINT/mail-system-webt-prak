@@ -3,13 +3,14 @@ package de.thm.mni.backend.storage
 import de.thm.mni.backend.attachment.AttachmentRepository
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.user.CurrentUserService
 import org.springframework.core.io.Resource
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -24,16 +25,17 @@ class StorageController(
     private val fileStorageService: FileStorageService,
     private val attachmentRepository: AttachmentRepository,
     private val mailRecordService: MailRecordService,
+    private val currentUserService: CurrentUserService,
 ) {
     @GetMapping("/{attachmentId}")
     fun getAttachment(
         @PathVariable attachmentId: UUID,
-        @AuthenticationPrincipal user: UserDetails,
+        @AuthenticationPrincipal jwt: Jwt,
     ): ResponseEntity<Resource> {
         val attachment = attachmentRepository.findById(attachmentId).orElse(null)
             ?: throw ResourceNotFoundException("Attachment not found")
         val mail = attachment.mail ?: throw ResourceNotFoundException("Attachment not found")
-        val userId = UUID.fromString(user.username)
+        val userId = currentUserService.getOrProvision(jwt).id!!
         val records = mail.id?.let { mailRecordService.getMailRecordByMailId(it) }.orEmpty()
         val canAccess = mail.sender?.id == userId || records.any { it.user?.id == userId }
 

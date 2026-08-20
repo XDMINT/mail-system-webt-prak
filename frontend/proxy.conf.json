@@ -1,0 +1,22 @@
+{
+  "/api": {
+    "target": "http://localhost",
+    "secure": false,
+    "changeOrigin": false
+  },
+  "/auth": {
+    "target": "http://localhost",
+    "secure": false,
+    "changeOrigin": false
+  },
+  "/v3/api-docs": {
+    "target": "http://localhost",
+    "secure": false,
+    "changeOrigin": false
+  },
+  "/swagger-ui": {
+    "target": "http://localhost",
+    "secure": false,
+    "changeOrigin": false
+  }
+}

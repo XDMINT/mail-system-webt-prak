@@ -1,92 +1,134 @@
 services:
   database:
     image: postgres:17
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    # KEINE PORTS NACH AUSSEN – Erfüllt die Sicherheitsvorgabe!
+      POSTGRES_USER: ${DB_USER:-mail-system}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mail-system}
+      POSTGRES_DB: ${DB_NAME:-mail-system}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mail-system} -d ${DB_NAME:-mail-system}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
-    restart: always
+    image: chrislusf/seaweedfs:4.06
+    restart: unless-stopped
     command: "server -s3 -s3.config=/etc/seaweedfs/s3.json -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0"
     volumes:
       - seaweed_data:/data
       - ./seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9333/cluster/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost/auth}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/mail-system-realm.json:/opt/keycloak/data/import/mail-system-realm.json:ro
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000;
+          printf 'GET /auth/health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3;
+          grep -q '200 OK' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    restart: always
+    restart: unless-stopped
     environment:
-        # Doppelte Absicherung für Spring Boot & Postgres
-        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-        SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/${DB_NAME}
-        SPRING_DATASOURCE_USERNAME: ${DB_USER}
-        SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-        SPRING_JPA_HIBERNATE_DDL_AUTO: ${DB_DDL_AUTO:-update}
-        DB_URL: jdbc:postgresql://database:5432/${DB_NAME}
-        DB_DRIVER: org.postgresql.Driver
-        DB_USER: ${DB_USER}
-        DB_PASSWORD: ${DB_PASSWORD}
-        DB_DDL_AUTO: ${DB_DDL_AUTO:-update}
-        APP_NAME: ${APP_NAME:-mail-project}
-        APP_SECRET: ${APP_SECRET}
-        APP_JWT_EXPIRES: ${APP_JWT_EXPIRES:-3600}
-        APP_JWT_SECRET: ${APP_JWT_SECRET}
-        STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://seaweedfs:8333}
-        STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-mail-attachments}
-        STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
-        STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-mail-system}
-        STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-mail-system-secret}
-        # Mail transport / inbox sync
-        SPRING_MAIL_HOST: ${SPRING_MAIL_HOST}
-        SPRING_MAIL_PORT: ${SPRING_MAIL_PORT}
-        SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
-        SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
-        MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
-        MAIL_REPLY_TO_ADDRESS: ${MAIL_REPLY_TO_ADDRESS:-}
-        # SMTP debug/SSL troubleshooting
-        SPRING_MAIL_PROPERTIES_MAIL_DEBUG: "true"
-        SPRING_MAIL_PROPERTIES_MAIL_TRANSPORT_PROTOCOL: smtps
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_TRUST: mailgate.thm.de
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE: "true"
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
-        MAIL_IMAP_HOST: ${MAIL_IMAP_HOST}
-        MAIL_IMAP_PORT: ${MAIL_IMAP_PORT}
-        MAIL_IMAP_USERNAME: ${MAIL_IMAP_USERNAME}
-        MAIL_IMAP_PASSWORD: ${MAIL_IMAP_PASSWORD}
-        MAIL_IMAP_FOLDER: ${MAIL_IMAP_FOLDER}
-        MAIL_IMAP_POLL_INTERVAL_MS: ${MAIL_IMAP_POLL_INTERVAL_MS:-5000}
-        MAIL_IMAP_RECENT_WINDOW_SIZE: ${MAIL_IMAP_RECENT_WINDOW_SIZE:-50}
-      # KEINE PORTS NACH AUSSEN – Sicher hinter Caddy versteckt!
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/${DB_NAME:-mail-system}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-mail-system}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-mail-system}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DB_DDL_AUTO:-update}
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI:-http://localhost/auth/realms/mail-system}
+      OIDC_JWK_SET_URI: ${OIDC_JWK_SET_URI:-http://keycloak:8080/auth/realms/mail-system/protocol/openid-connect/certs}
+      OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL:-http://localhost/auth/realms/mail-system/.well-known/openid-configuration}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:4200}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://seaweedfs:8333}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-mail-attachments}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-mail-system}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-mail-system-secret}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-465}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      MAIL_REPLY_TO_ADDRESS: ${MAIL_REPLY_TO_ADDRESS:-}
+      SPRING_MAIL_PROPERTIES_MAIL_DEBUG: ${SPRING_MAIL_DEBUG:-false}
+      SPRING_MAIL_PROPERTIES_MAIL_TRANSPORT_PROTOCOL: smtps
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_TRUST: ${SPRING_MAIL_SSL_TRUST:-mailgate.thm.de}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
+      MAIL_IMAP_USERNAME: ${MAIL_IMAP_USERNAME:-}
+      MAIL_IMAP_PASSWORD: ${MAIL_IMAP_PASSWORD:-}
+      MAIL_IMAP_FOLDER: ${MAIL_IMAP_FOLDER:-INBOX}
+      MAIL_IMAP_POLL_INTERVAL_MS: ${MAIL_IMAP_POLL_INTERVAL_MS:-5000}
+      MAIL_IMAP_RECENT_WINDOW_SIZE: ${MAIL_IMAP_RECENT_WINDOW_SIZE:-50}
     depends_on:
-        seaweedfs:
-          condition: service_started
-        database:
-          condition: service_healthy
+      database:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    restart: always
+    restart: unless-stopped
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   db_data:
   seaweed_data:
+  keycloak_data:
