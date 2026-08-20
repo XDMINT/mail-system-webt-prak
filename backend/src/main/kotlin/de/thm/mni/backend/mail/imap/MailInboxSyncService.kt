@@ -38,6 +38,7 @@ class MailInboxSyncService(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     @Scheduled(fixedDelayString = "\${mail.imap.poll-interval-ms:5000}")
+    @Suppress("TooGenericExceptionCaught") // A failed poll must not terminate future scheduled synchronizations.
     fun synchronizeInbox() {
         if (host.isBlank() || username.isBlank() || password.isBlank()) {
             return
@@ -161,6 +162,7 @@ class MailInboxSyncService(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // One malformed message must not prevent importing the remaining inbox.
     internal fun importUnseenMessages(messages: Array<Message>): SyncResult {
         var importedCount = 0
         var skippedCount = 0
@@ -235,7 +237,8 @@ class MailInboxSyncService(
         )
     }
 
-    private fun Date?.toLocalDateTime(): LocalDateTime? = this?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
+    private fun Date?.toLocalDateTime(): LocalDateTime? =
+        this?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
 
     private data class ParsedMessage(
         val subject: String,

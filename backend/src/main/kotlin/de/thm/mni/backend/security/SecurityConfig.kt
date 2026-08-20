@@ -30,7 +30,7 @@ class SecurityConfig(
                         allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         allowedHeaders = listOf("Authorization", "Content-Type", "Accept")
                         allowCredentials = true
-                        maxAge = 3600L
+                        maxAge = CORS_PREFLIGHT_MAX_AGE_SECONDS
                     }
                 }
             }
@@ -53,4 +53,8 @@ class SecurityConfig(
             .formLogin { it.disable() }
             .httpBasic { it.disable() }
             .build()
+
+    private companion object {
+        private const val CORS_PREFLIGHT_MAX_AGE_SECONDS = 3600L
+    }
 }

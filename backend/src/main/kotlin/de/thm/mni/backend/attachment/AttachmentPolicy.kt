@@ -59,9 +59,12 @@ class AttachmentPolicy(
     }
 
     fun normalizeContentType(contentType: String?): String? {
-        val candidate = contentType?.substringBefore(';')?.trim()?.takeIf(String::isNotBlank) ?: return null
-        if (candidate.length > MAX_CONTENT_TYPE_LENGTH) return null
-        return runCatching { MediaType.parseMediaType(candidate).toString() }.getOrNull()
+        val candidate = contentType
+            ?.substringBefore(';')
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?.takeIf { it.length <= MAX_CONTENT_TYPE_LENGTH }
+        return candidate?.let { runCatching { MediaType.parseMediaType(it).toString() }.getOrNull() }
     }
 
     fun isPreviewable(contentType: String?): Boolean = normalizeContentType(contentType) in PREVIEWABLE_TYPES

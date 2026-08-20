@@ -1,10 +1,10 @@
-package de.thm.mni.backend.mail_record
+package de.thm.mni.backend.mailrecord
 
 import de.thm.mni.backend.mail.Mail
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailType
 import de.thm.mni.backend.mail.enums.MailSource
-import de.thm.mni.backend.mail_record.dto.CreateMailRecord
+import de.thm.mni.backend.mailrecord.dto.CreateMailRecord
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -37,7 +37,7 @@ class MailRecordService(private val repository: MailRecordRepository) {
     fun getAllIncomingMailsForUser(userId: UUID): List<Mail> {
         return repository.findAllByUserId(userId)
             .filter { it.type in RECIPIENT_TYPES }
-            .map { it -> it.mail!! }
+            .map { it.mail!! }
             .filter { mail -> mail.status == MailStatus.SENT }
     }
 

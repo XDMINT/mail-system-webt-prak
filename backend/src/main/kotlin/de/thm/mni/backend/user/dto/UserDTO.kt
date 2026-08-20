@@ -10,9 +10,21 @@ data class UserDTO(
     val id: UUID,
     @field:Schema(description = "First name.", example = "Erika", minLength = 1, maxLength = User.NAME_MAX_LENGTH, requiredMode = Schema.RequiredMode.REQUIRED)
     val firstName: String,
-    @field:Schema(description = "Last name.", example = "Mustermann", minLength = 1, maxLength = User.NAME_MAX_LENGTH, requiredMode = Schema.RequiredMode.REQUIRED)
+    @field:Schema(
+        description = "Last name.",
+        example = "Mustermann",
+        minLength = 1,
+        maxLength = User.NAME_MAX_LENGTH,
+        requiredMode = Schema.RequiredMode.REQUIRED,
+    )
     val lastName: String,
-    @field:Schema(description = "Email address.", example = "erika@example.org", minLength = 1, maxLength = User.EMAIL_MAX_LENGTH, requiredMode = Schema.RequiredMode.REQUIRED)
+    @field:Schema(
+        description = "Email address.",
+        example = "erika@example.org",
+        minLength = 1,
+        maxLength = User.EMAIL_MAX_LENGTH,
+        requiredMode = Schema.RequiredMode.REQUIRED,
+    )
     val email: String
 )
 

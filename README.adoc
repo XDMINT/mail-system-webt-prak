@@ -4,20 +4,20 @@
 
 == Purpose and current scope
 
-This repository contains a university project for a shared email-support application. Registered internal users can work with mails through an Angular client and a Spring Boot API. PostgreSQL stores business data and SeaweedFS provides S3-compatible attachment storage. SMTP and IMAP connect the application to the configurable support mailbox.
+This repository contains a university project for a shared email-support application. Authenticated internal Keycloak users can work with mails through an Angular client and a Spring Boot API. PostgreSQL stores business data and SeaweedFS provides S3-compatible attachment storage. SMTP and IMAP connect the application to the configurable support mailbox.
 
-The current implementation includes the reproducible one-command build/start workflow, Keycloak/OpenID Connect, the shared support-reply flow, the final flag-based IMAP strategy and the security infrastructure required by the assignment. Linting, dependency maintenance and C4 documentation remain tracked in `PROJEKTPLAN.md`; C4 is intentionally handled separately.
+The current implementation includes the reproducible one-command build/start workflow, Keycloak/OpenID Connect, the shared support-reply flow, the flag-based IMAP strategy, generated OpenAPI documentation, security infrastructure and client/server linters required by the assignment. C4 documentation is intentionally handled in its separately agreed work package.
 
 == Technology stack
 
-* Angular, TypeScript, PrimeNG and Tailwind CSS
-* Kotlin, Spring Boot, Spring Security and Spring Data JPA
-* Gradle monorepo with a downloaded Node.js/npm toolchain
-* Keycloak and OpenID Connect
-* PostgreSQL
-* SeaweedFS with its S3-compatible API
-* Caddy, ModSecurity with OWASP CRS, Snort and Docker Compose
-* H2 for backend tests and Vitest through Angular for frontend tests
+* Angular 21.2.21, TypeScript 5.9.3, PrimeNG 21.1.9 and Tailwind CSS 4.3.3
+* Kotlin 2.4.10, Spring Boot 4.0.7, Spring Security and Spring Data JPA on Java 25
+* Gradle 9.4.0 monorepo with downloaded Node.js 24.19.0 and npm 11.19.0 toolchains
+* Keycloak 26.6.3 and OpenID Connect
+* PostgreSQL 17 and SeaweedFS 4.06 with its S3-compatible API
+* Caddy 2.10.2, ModSecurity with OWASP CRS, Snort 3 and Docker Compose
+* Detekt 2.0.0-alpha.6 and Angular ESLint 21.4.0 for static code analysis
+* H2 2.4.240 for backend tests and Vitest 4.1.11 through Angular for frontend tests
 
 == Authentication and authorization
 
@@ -70,7 +70,7 @@ On Linux or macOS:
 ./gradlew composeUp
 ----
 
-The task installs locked frontend dependencies with `npm ci`, runs backend and frontend tests, creates the Angular production output, builds the container images and starts the complete Compose stack. The application is available at https://localhost. The supplied development certificate is intentionally self-signed and must be accepted once in the browser. Requests to http://localhost are redirected to HTTPS.
+The task installs locked frontend dependencies with `npm ci`, runs Detekt and ESLint, executes backend and frontend tests, creates the Angular production output, builds the container images and starts the complete Compose stack. The application is available at https://localhost. The supplied development certificate is intentionally self-signed and must be accepted once in the browser. Requests to http://localhost are redirected to HTTPS.
 
 Stop all services without deleting persistent data:
 
@@ -81,11 +81,18 @@ Stop all services without deleting persistent data:
 
 == Development build
 
-Run the backend tests, frontend tests and frontend production build without starting containers:
+Run all linters, tests and the frontend production build without starting containers:
 
 [source,powershell]
 ----
-.\gradlew.bat :backend:test :frontend:test :frontend:build
+.\gradlew.bat check
+----
+
+Create the complete backend and frontend distribution under `build/install`:
+
+[source,powershell]
+----
+.\gradlew.bat clean check installDist
 ----
 
 For Angular live development, first start the Compose stack, then run:
@@ -127,7 +134,7 @@ Five Compose networks implement the small, explicit separation expected by the l
 
 All services use `no-new-privileges` and drop all Linux capabilities before adding back only those verified as necessary. Read-only root filesystems, non-root users and bounded `tmpfs` mounts are applied where the concrete images support them. Keycloak remains writable because its course-approved `start-dev` command writes below `/opt/keycloak/lib`; the ModSecurity image generates runtime configuration; PostgreSQL requires its data volume and five initialization/runtime capabilities; Snort runs as root with the five capabilities needed for iptables/NFQUEUE and a writable generated configuration. SeaweedFS persists only `/data` and otherwise runs read-only as UID 1000.
 
-The WAF keeps OWASP CRS active at blocking paranoia level 2 and detection level 3. Narrow target exclusions cover only Keycloak's validated redirect/token syntax and the binary/JSON parts of the mail multipart endpoints. A SQL-injection probe remains blocked. Full rationale and the verified public-path behavior are documented in `SECURITY.md` and `VERIFICATION_CHECKLIST.md`.
+The WAF keeps OWASP CRS active at blocking paranoia level 2 and detection level 3. Narrow target exclusions cover only Keycloak's validated redirect/token syntax and the binary/JSON parts of the mail multipart endpoints. A SQL-injection probe remains blocked. Full rationale and the verified public-path behavior are documented in `SECURITY.adoc` and `VERIFICATION_CHECKLIST.adoc`.
 
 == Configuration groups
 
@@ -145,7 +152,7 @@ SMTP and IMAP are disabled when the corresponding required host or credentials a
 
 == Shared support workflow
 
-Every registered Keycloak user can open the seeded or IMAP-imported external support mails. The reply action creates a draft addressed to the original external sender. It assigns or reuses a random `TICKET-XXXXXXXX` code and displays it in the prefixed reply subject before sending.
+Every authenticated internal Keycloak user can open the seeded or IMAP-imported external support mails. The reply action creates a draft addressed to the original external sender. It assigns or reuses a random `TICKET-XXXXXXXX` code and displays it in the prefixed reply subject before sending.
 
 The authenticated user is stored as the internal author of the reply. The SMTP `From` header always uses the shared THM address configured as `MAIL_FROM_ADDRESS`; no user-selectable `Reply-To` recipient exists. Without a separate `Reply-To` header, subsequent external answers return to that same THM address.
 
@@ -173,8 +180,11 @@ proxy/                   WAF routes and supplied development certificate
 ips/                     Adapted Snort inline lecture demonstrator
 docker-compose.yml       Complete local stack
 .env.example             Non-secret configuration reference
-SECURITY.md              Security architecture and justified exceptions
-PROJEKTPLAN.md           Verified decisions, status and remaining work
+SECURITY.adoc            Security architecture and justified exceptions
+IMAP_SMTP_IMPLEMENTATION.adoc
+                         Support mail, SMTP, IMAP and attachment decisions
+VERIFICATION_CHECKLIST.adoc
+                         Automated and manual verification evidence
 ....
 
 The local `.codex/` and `folien/` directories remain untouched and are deliberately not added to `.gitignore`. The C4 model will be added in its separately agreed work package.

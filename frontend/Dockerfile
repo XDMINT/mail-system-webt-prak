@@ -1,9 +1,9 @@
-FROM node:24.12.0-alpine AS builder
+FROM node:24.19.0-alpine AS builder
 
 WORKDIR /workspace
 
 COPY package.json package-lock.json ./
-RUN npm install --global npm@11.6.2 \
+RUN npm install --global npm@11.19.0 \
     && npm ci
 
 COPY angular.json tsconfig.json tsconfig.app.json tsconfig.spec.json .postcssrc.json ./

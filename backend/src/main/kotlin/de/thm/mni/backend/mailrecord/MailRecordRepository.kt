@@ -1,4 +1,4 @@
-package de.thm.mni.backend.mail_record
+package de.thm.mni.backend.mailrecord
 
 import de.thm.mni.backend.mail.enums.MailType
 import de.thm.mni.backend.mail.Mail

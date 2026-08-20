@@ -6,7 +6,7 @@ import de.thm.mni.backend.attachment.AttachmentRepository
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail.Mail
 import de.thm.mni.backend.mail.enums.MailSource
-import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mailrecord.MailRecordService
 import de.thm.mni.backend.user.CurrentUserService
 import de.thm.mni.backend.user.User
 import org.junit.jupiter.api.Assertions.assertEquals

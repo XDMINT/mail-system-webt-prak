@@ -11,9 +11,20 @@ data class AttachmentDTO(
     val id: UUID,
     @field:Schema(description = "Attachment size in bytes.", example = "42816", requiredMode = Schema.RequiredMode.REQUIRED)
     val size: Long,
-    @field:Schema(description = "Original normalized file name.", example = "screenshot.png", minLength = 1, maxLength = AttachmentPolicy.MAX_FILE_NAME_LENGTH, requiredMode = Schema.RequiredMode.REQUIRED)
+    @field:Schema(
+        description = "Original normalized file name.",
+        example = "screenshot.png",
+        minLength = 1,
+        maxLength = AttachmentPolicy.MAX_FILE_NAME_LENGTH,
+        requiredMode = Schema.RequiredMode.REQUIRED,
+    )
     val fileName: String,
-    @field:Schema(description = "Declared normalized media type, if valid.", example = "image/png", minLength = 1, maxLength = AttachmentPolicy.MAX_CONTENT_TYPE_LENGTH)
+    @field:Schema(
+        description = "Declared normalized media type, if valid.",
+        example = "image/png",
+        minLength = 1,
+        maxLength = AttachmentPolicy.MAX_CONTENT_TYPE_LENGTH,
+    )
     val mimeType: String?,
 )
 

@@ -5,8 +5,8 @@ import de.thm.mni.backend.mail.dto.MailDTO
 import de.thm.mni.backend.mail.dto.MailListItemDTO
 import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail.enums.MailType
-import de.thm.mni.backend.mail_record.MailRecord
-import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mailrecord.MailRecord
+import de.thm.mni.backend.mailrecord.MailRecordService
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.dto.toDTO
 import org.springframework.stereotype.Component
@@ -46,7 +46,7 @@ class MailMapper(private val mailRecordService: MailRecordService) {
             to = records.filter { it.type == MailType.TO }.map { it.user!!.toDTO() },
             cc = records.filter { it.type == MailType.CC }.map { it.user!!.toDTO() },
             bcc = records.filter { it.type == MailType.BCC && (it.user!!.id == user.id || mail.sender!!.id == user.id) }.map { it.user!!.toDTO() },
-            attachments = mail.attachments.map { it -> it.toDTO() },
+            attachments = mail.attachments.map { it.toDTO() },
             createdAt = mail.createdAt,
             updatedAt = mail.updatedAt,
             sentAt = mail.sentAt

@@ -1,4 +1,4 @@
-package de.thm.mni.backend.mail_record
+package de.thm.mni.backend.mailrecord
 
 import jakarta.persistence.Column
 import jakarta.persistence.Embeddable
@@ -36,6 +36,10 @@ class MailRecordId: Serializable {
     constructor(mailId: UUID, userId: UUID) {
         this.mailId = mailId
         this.userId = userId
+    }
+
+    private companion object {
+        private const val serialVersionUID = 1L
     }
 
 }

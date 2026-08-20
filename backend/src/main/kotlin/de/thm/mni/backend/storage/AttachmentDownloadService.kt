@@ -4,7 +4,7 @@ import de.thm.mni.backend.attachment.AttachmentPolicy
 import de.thm.mni.backend.attachment.AttachmentRepository
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail.enums.MailSource
-import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mailrecord.MailRecordService
 import org.springframework.core.io.Resource
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service

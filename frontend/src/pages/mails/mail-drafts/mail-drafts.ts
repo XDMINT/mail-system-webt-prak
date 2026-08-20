@@ -1,4 +1,4 @@
-import {Component, inject, signal} from '@angular/core';
+import {Component, inject, OnInit, signal} from '@angular/core';
 import {MailsService} from '../../../services/mails/mails-service';
 import {MessageService} from 'primeng/api';
 import {Mail} from '../../../types/mails';
@@ -14,7 +14,7 @@ import {Toast} from 'primeng/toast';
   templateUrl: './mail-drafts.html',
   styleUrl: './mail-drafts.css',
 })
-export class MailDrafts {
+export class MailDrafts implements OnInit {
   private mailsService = inject(MailsService);
   private messageService = inject(MessageService);
 

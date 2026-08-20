@@ -6,7 +6,7 @@ import de.thm.mni.backend.mail.dto.MailUpdate
 import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailType
-import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mailrecord.MailRecordService
 import de.thm.mni.backend.smtp.OutboundMailGateway
 import de.thm.mni.backend.user.UserService
 import de.thm.mni.backend.user.User

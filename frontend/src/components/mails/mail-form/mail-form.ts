@@ -19,6 +19,9 @@ import { User } from '../../../types/user';
 import { CreateMail, Mail, UpdateMail } from '../../../types/mails';
 import { InputTextModule } from 'primeng/inputtext';
 import { Attachment } from '../../../types/attachment';
+import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { ErrorResponse } from '../../../types/error';
 
 @Component({
   selector: 'app-mail-form',
@@ -237,9 +240,10 @@ export class MailForm implements OnInit, OnChanges {
     this.router.navigate([navigateTo]);
   }
 
-  private handleMailError(error: any, defaultMessage: string) {
+  private handleMailError(error: HttpErrorResponse, defaultMessage: string) {
     this.isLoading.set(false);
-    const errorMessage = error.error?.message || defaultMessage;
+    const errorResponse = error.error as Partial<ErrorResponse> | null;
+    const errorMessage = errorResponse?.message || defaultMessage;
     this.messageService.add({
       severity: 'error',
       summary: 'Error',
@@ -330,7 +334,7 @@ export class MailForm implements OnInit, OnChanges {
 
       // create via API
       try {
-        const resp = await this.mailsService.ensureUser(trimmed).toPromise();
+        const resp = await firstValueFrom(this.mailsService.ensureUser(trimmed));
         if (resp && resp.id) {
           ids.push(resp.id);
           // update local users cache
@@ -339,7 +343,7 @@ export class MailForm implements OnInit, OnChanges {
           this.messageService.add({ severity: 'error', summary: 'Failed', detail: `Could not ensure user for ${trimmed}` });
           return null;
         }
-      } catch (ex) {
+      } catch {
         this.messageService.add({ severity: 'error', summary: 'Failed', detail: `Could not ensure user for ${trimmed}` });
         return null;
       }

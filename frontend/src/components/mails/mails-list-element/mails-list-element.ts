@@ -1,18 +1,17 @@
-import { Component, Input, inject } from '@angular/core';
-import { Router} from '@angular/router';
+import { Component, Input } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Mail, MailListItem } from '../../../types/mails';
 import { TagModule } from 'primeng/tag';
 import {getSeverityBadge} from '../../../utils/badges';
 
 @Component({
   selector: 'app-mails-list-element',
-  imports: [TagModule],
+  imports: [TagModule, RouterLink],
   templateUrl: './mails-list-element.html',
 })
 export class MailsListElement {
   @Input() mail!: Mail | MailListItem;
 
-  private router = inject(Router);
   protected readonly getSeverityBadge = getSeverityBadge;
 
   formatDate(dateString: string): string {
@@ -30,10 +29,6 @@ export class MailsListElement {
       month: 'short',
       day: 'numeric',
     });
-  }
-
-  navigateToMail() {
-    this.router.navigate(['/mails', this.mail.id]);
   }
 
   getAttachmentCount(): number {

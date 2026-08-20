@@ -44,7 +44,7 @@ class OpenApiConfig(
         openApi.paths.orEmpty().values.forEach { pathItem ->
             pathItem.readOperations().forEach { operation ->
                 operation.responses.orEmpty()
-                    .filterKeys { code -> code.toIntOrNull()?.let { it >= 400 } == true }
+                    .filterKeys { code -> code.toIntOrNull()?.let { it >= HTTP_CLIENT_ERROR_MINIMUM } == true }
                     .values
                     .forEach { response ->
                         response.content = Content().addMediaType(
@@ -58,5 +58,6 @@ class OpenApiConfig(
 
     companion object {
         const val OIDC_SECURITY_SCHEME = "keycloakOidc"
+        private const val HTTP_CLIENT_ERROR_MINIMUM = 400
     }
 }

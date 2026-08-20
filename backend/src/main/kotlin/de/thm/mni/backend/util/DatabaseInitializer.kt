@@ -4,8 +4,8 @@ import de.thm.mni.backend.mail.Mail
 import de.thm.mni.backend.mail.MailRepository
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailType
-import de.thm.mni.backend.mail_record.MailRecord
-import de.thm.mni.backend.mail_record.MailRecordRepository
+import de.thm.mni.backend.mailrecord.MailRecord
+import de.thm.mni.backend.mailrecord.MailRecordRepository
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.UserRepository
 import de.thm.mni.backend.util.dto.SeedData
@@ -26,6 +26,7 @@ class DatabaseInitializer(
 ): CommandLineRunner {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    @Suppress("TooGenericExceptionCaught") // Invalid optional seed data must not prevent the application from starting.
     override fun run(vararg args: String) {
         try {
             val resource = ClassPathResource("data.json")

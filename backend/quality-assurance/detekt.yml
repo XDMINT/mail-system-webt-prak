@@ -1,0 +1,46 @@
+config:
+  validation: true
+  warningsAsErrors: false
+
+complexity:
+  LongMethod:
+    active: true
+    allowedLines: 60
+    excludes: ['**/test/**']
+  TooManyFunctions:
+    active: true
+    excludes: ['**/test/**']
+    allowedFunctionsPerFile: 15
+    allowedFunctionsPerClass: 25
+    allowedFunctionsPerInterface: 11
+    allowedFunctionsPerObject: 15
+    allowedFunctionsPerEnum: 11
+
+style:
+  MagicNumber:
+    active: true
+    excludes: ['**/test/**', '**/*.kts']
+    ignoreNumbers: ['-1', '0', '1', '2']
+  MaxLineLength:
+    active: true
+    maxLineLength: 160
+    excludePackageStatements: true
+    excludeImportStatements: true
+    excludeCommentStatements: false
+    excludeRawStrings: true
+  ReturnCount:
+    active: true
+    max: 2
+    excludedFunctions: ['equals']
+    excludeLabeled: false
+    excludeReturnFromLambda: true
+    excludeGuardClauses: true
+  ThrowsCount:
+    active: true
+    max: 2
+    excludeGuardClauses: true
+
+empty-blocks:
+  EmptyFunctionBlock:
+    active: true
+    excludes: ['**/test/**']

@@ -1,8 +1,9 @@
 plugins {
-    kotlin("jvm") version "2.2.21"
-    kotlin("plugin.spring") version "2.2.21"
-    id("org.springframework.boot") version "4.0.6"
+    kotlin("jvm") version "2.4.10"
+    kotlin("plugin.spring") version "2.4.10"
+    id("org.springframework.boot") version "4.0.7"
     id("io.spring.dependency-management") version "1.1.7"
+    id("dev.detekt") version "2.0.0-alpha.6"
     application
 }
 
@@ -31,54 +32,53 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-webmvc:4.0.6")
-    implementation("org.springframework.boot:spring-boot-starter-mail:4.0.6")
-    implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.21")
-    implementation("tools.jackson.module:jackson-module-kotlin:3.1.2")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-mail")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
-    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test:4.0.6")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.2.21")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("org.springframework.security:spring-security-test")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.3")
-    implementation("org.springframework.boot:spring-boot-starter-security:4.0.6")
-    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server:4.0.6")
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa:4.0.6")
-    implementation("org.springframework.boot:spring-boot-starter-validation:4.0.6")
-    implementation(platform("software.amazon.awssdk:bom:2.46.13"))
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation(platform("software.amazon.awssdk:bom:2.49.6"))
     implementation("software.amazon.awssdk:s3")
     implementation("software.amazon.awssdk:url-connection-client")
-    runtimeOnly("org.postgresql:postgresql:42.7.10")
-    runtimeOnly("com.h2database:h2:2.4.240")
+    runtimeOnly("org.postgresql:postgresql:42.7.13")
+    runtimeOnly("com.h2database:h2")
 }
 
 kotlin {
-    // Kotlin 2.2.x kann noch kein JVM-25-Bytecode erzeugen; wir kompilieren daher auf 24,
-    // laufen aber weiterhin mit JDK 25 (Toolchain) fuer Build und Runtime.
     jvmToolchain(25)
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_24)
-        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+        freeCompilerArgs.add("-Xjsr305=strict")
     }
 }
 
 tasks.withType<JavaCompile> {
-    options.release.set(24)
+    options.release.set(25)
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-tasks.register("hello world") {
-    group = "hello"
-    description = "Hello World"
-    dependsOn("build")
-    println("Hello World, during confuguration")
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(files("quality-assurance/detekt.yml"))
+}
 
-    doFirst {
-        println("firts Hello world")
-    }
-    doLast {
-        println("last Hello world")
-    }
+tasks.register("lint") {
+    description = "Runs Detekt static code analysis"
+    group = "verification"
+    dependsOn("detekt")
+}
+
+tasks.named("check") {
+    dependsOn("lint")
 }

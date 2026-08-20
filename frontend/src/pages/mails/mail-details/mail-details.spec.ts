@@ -25,8 +25,10 @@ describe('MailDetails', () => {
   });
 
   it('should only preview safe raster image types', () => {
-    expect((component as any).isPreviewable({ mimeType: 'image/png' })).toBe(true);
-    expect((component as any).isPreviewable({ mimeType: 'image/svg+xml' })).toBe(false);
-    expect((component as any).isPreviewable({ mimeType: 'text/html' })).toBe(false);
+    const attachment = { id: 'attachment-id', fileName: 'image', size: 1 };
+
+    expect(component.isPreviewable({ ...attachment, mimeType: 'image/png' })).toBe(true);
+    expect(component.isPreviewable({ ...attachment, mimeType: 'image/svg+xml' })).toBe(false);
+    expect(component.isPreviewable({ ...attachment, mimeType: 'text/html' })).toBe(false);
   });
 });

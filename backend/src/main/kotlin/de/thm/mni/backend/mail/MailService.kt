@@ -9,8 +9,8 @@ import de.thm.mni.backend.mail.dto.MailUpdate
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail.enums.MailType
-import de.thm.mni.backend.mail_record.MailRecordService
-import de.thm.mni.backend.mail_record.dto.CreateMailRecord
+import de.thm.mni.backend.mailrecord.MailRecordService
+import de.thm.mni.backend.mailrecord.dto.CreateMailRecord
 import de.thm.mni.backend.smtp.OutboundMailGateway
 import de.thm.mni.backend.storage.FileStorageService
 import de.thm.mni.backend.storage.StoredAttachment
@@ -247,7 +247,7 @@ class MailService(
     }
 
     private fun generateTrackingCode(): String {
-        return "TICKET-${UUID.randomUUID().toString().take(8).uppercase()}"
+        return "TICKET-${UUID.randomUUID().toString().take(TRACKING_CODE_LENGTH).uppercase()}"
     }
 
     private fun storeUploadedFiles(files: List<MultipartFile>): MutableList<StoredAttachment> {
@@ -311,6 +311,7 @@ class MailService(
     private companion object {
         private val TRACKING_PREFIX_REGEX = Regex("^\\[(TICKET-[A-Z0-9]{8})\\]\\s*")
         private const val MAX_SUBJECT_LENGTH = 255
+        private const val TRACKING_CODE_LENGTH = 8
     }
 
     private fun createMailRecordsFromIds(

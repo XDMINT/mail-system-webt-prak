@@ -8,8 +8,8 @@ apply(plugin = "idea")
 
 node {
   download = true
-  version = "24.12.0"
-  npmVersion = "11.6.2"
+  version = "24.19.0"
+  npmVersion = "11.19.0"
 }
 
 val npmCi by tasks.registering(NpmTask::class) {
@@ -33,21 +33,21 @@ tasks.register<NpmTask>("test") {
   workingDir.set(project.projectDir)
 }
 
+tasks.register<NpmTask>("lint") {
+  group = "verification"
+  dependsOn(npmCi)
+  args.set(listOf("run", "lint"))
+  workingDir.set(project.projectDir)
+}
+
 tasks.register("installDist") {
   dependsOn("build")
-  doLast {
-    copy {
-      from("dist/browser")
-      into("build/install/browser")
-    }
-  }
 }
 
 tasks.register<Delete>("clean") {
-  val modulePath = project.rootDir.resolve("frontend")
-  delete(modulePath.resolve(".angular"))
-  delete(modulePath.resolve(".gradle"))
-  delete(modulePath.resolve("build"))
-  delete(modulePath.resolve("dist"))
-  //delete(modulePath.resolve("node_modules"))
+  val modulePath = layout.projectDirectory
+  delete(modulePath.dir(".angular"))
+  delete(modulePath.dir(".gradle"))
+  delete(modulePath.dir("build"))
+  delete(modulePath.dir("dist"))
 }

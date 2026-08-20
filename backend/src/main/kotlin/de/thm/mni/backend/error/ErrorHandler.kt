@@ -53,8 +53,8 @@ class ErrorHandler {
     @ExceptionHandler(AttachmentTooLargeException::class, MaxUploadSizeExceededException::class)
     fun handleAttachmentTooLarge(err: Exception): ResponseEntity<AppError> {
         log.warn("Attachment rejected because it exceeds the configured size limit: {}", err.message)
-        val error = AppError(HttpStatus.PAYLOAD_TOO_LARGE.value(), "Attachment exceeds the configured size limit")
-        return ResponseEntity<AppError>(error, HttpStatus.PAYLOAD_TOO_LARGE)
+        val error = AppError(HttpStatus.CONTENT_TOO_LARGE.value(), "Attachment exceeds the configured size limit")
+        return ResponseEntity<AppError>(error, HttpStatus.CONTENT_TOO_LARGE)
     }
 
     // Handle all other exceptions

@@ -1,3 +1,3 @@
 package de.thm.mni.backend.error
 
-class ResourceNotFoundException(message: String): Exception(message)
+class ResourceNotFoundException(message: String) : Exception(message)

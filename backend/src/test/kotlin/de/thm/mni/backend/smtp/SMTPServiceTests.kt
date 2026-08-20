@@ -2,8 +2,8 @@ package de.thm.mni.backend.smtp
 
 import de.thm.mni.backend.mail.Mail
 import de.thm.mni.backend.mail.enums.MailType
-import de.thm.mni.backend.mail_record.MailRecord
-import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mailrecord.MailRecord
+import de.thm.mni.backend.mailrecord.MailRecordService
 import de.thm.mni.backend.storage.FileStorageService
 import de.thm.mni.backend.user.User
 import jakarta.mail.Message

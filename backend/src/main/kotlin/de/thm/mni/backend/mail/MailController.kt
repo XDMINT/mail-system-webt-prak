@@ -12,7 +12,7 @@ import de.thm.mni.backend.mail.dto.toMailCreate
 import de.thm.mni.backend.mail.dto.toMailUpdate
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailSource
-import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mailrecord.MailRecordService
 import de.thm.mni.backend.user.CurrentUserService
 import jakarta.validation.Valid
 import io.swagger.v3.oas.annotations.Operation
@@ -25,7 +25,16 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RequestPart
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
 
@@ -76,7 +85,11 @@ class MailController(private val mailService: MailService,
         return mailMapper.toDTO(user, createdMail)
     }
 
-    @Operation(operationId = "getIncomingMails", summary = "List incoming mails", description = "Returns a page of imported support mails visible to the current user.")
+    @Operation(
+        operationId = "getIncomingMails",
+        summary = "List incoming mails",
+        description = "Returns a page of imported support mails visible to the current user.",
+    )
     @ApiResponse(responseCode = "200", description = "Incoming mail page returned")
     @GetMapping("/incoming")
     fun getIncomingMailsForUser(
@@ -139,7 +152,11 @@ class MailController(private val mailService: MailService,
         return mailMapper.toDTO(user, replyDraft)
     }
 
-    @Operation(operationId = "updateMailDraft", summary = "Update a draft", description = "Updates a draft or failed mail, retaining selected existing attachments and adding optional new files.")
+    @Operation(
+        operationId = "updateMailDraft",
+        summary = "Update a draft",
+        description = "Updates a draft or failed mail, retaining selected attachments and adding optional new files.",
+    )
     @ApiResponse(responseCode = "200", description = "Draft updated")
     @ApiResponse(responseCode = "400", description = "Invalid data or mail cannot be modified")
     @ApiResponse(responseCode = "404", description = "Mail or recipient not found")
@@ -166,7 +183,11 @@ class MailController(private val mailService: MailService,
         return mailMapper.toDTO(user, updatedMail)
     }
 
-    @Operation(operationId = "deleteMailDraft", summary = "Delete a mail", description = "Deletes a mail authored by the current user and removes its attachments after commit.")
+    @Operation(
+        operationId = "deleteMailDraft",
+        summary = "Delete a mail",
+        description = "Deletes a mail authored by the current user and removes its attachments after commit.",
+    )
     @ApiResponse(responseCode = "204", description = "Mail deleted")
     @ApiResponse(responseCode = "404", description = "Mail not found or not accessible")
     @DeleteMapping("/{mailId}")
@@ -180,7 +201,11 @@ class MailController(private val mailService: MailService,
         mailService.deleteMail(existingMail)
     }
 
-    @Operation(operationId = "sendMail", summary = "Send an existing mail", description = "Sends a draft or retries a failed mail through the configured SMTP server.")
+    @Operation(
+        operationId = "sendMail",
+        summary = "Send an existing mail",
+        description = "Sends a draft or retries a failed mail through the configured SMTP server.",
+    )
     @ApiResponse(responseCode = "200", description = "Mail sent")
     @ApiResponse(responseCode = "400", description = "Mail cannot be sent in its current state")
     @ApiResponse(responseCode = "404", description = "Mail not found or not accessible")
@@ -198,7 +223,11 @@ class MailController(private val mailService: MailService,
         return mailMapper.toDTO(user, sentMail)
     }
 
-    @Operation(operationId = "createAndSendMail", summary = "Create and send a mail", description = "Creates a new mail with optional attachments and immediately attempts SMTP delivery.")
+    @Operation(
+        operationId = "createAndSendMail",
+        summary = "Create and send a mail",
+        description = "Creates a new mail with optional attachments and immediately attempts SMTP delivery.",
+    )
     @ApiResponse(responseCode = "201", description = "Mail created and sent")
     @ApiResponse(responseCode = "400", description = "Invalid mail or recipient data")
     @ApiResponse(responseCode = "404", description = "Recipient not found")

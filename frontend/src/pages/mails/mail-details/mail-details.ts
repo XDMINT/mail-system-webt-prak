@@ -1,4 +1,4 @@
-import {Component, inject, Input, OnDestroy, signal} from '@angular/core';
+import {Component, inject, Input, OnDestroy, OnInit, signal} from '@angular/core';
 import { Router } from '@angular/router';
 import { MailsService } from '../../../services/mails/mails-service';
 import { MessageService } from 'primeng/api';
@@ -15,6 +15,7 @@ import {getSeverityBadge, getSourceBadge} from '../../../utils/badges';
 import { ImageModule } from 'primeng/image';
 import {AuthService} from '../../../services/auth/auth-service';
 import { Attachment } from '../../../types/attachment';
+import { User } from '../../../types/user';
 
 @Component({
   selector: 'app-mail-details',
@@ -33,7 +34,7 @@ import { Attachment } from '../../../types/attachment';
   templateUrl: './mail-details.html',
   styleUrl: './mail-details.css',
 })
-export class MailDetails implements OnDestroy {
+export class MailDetails implements OnDestroy, OnInit {
 
   @Input() protected id!: string;
 
@@ -97,7 +98,7 @@ export class MailDetails implements OnDestroy {
     return new Date(dateString).toLocaleString();
   }
 
-  getEmailString(recipients: any[] | undefined): string {
+  getEmailString(recipients: User[] | undefined): string {
     if (!recipients) return '';
     return recipients.map((r) => `${r.firstName} ${r.lastName} (${r.email})`).join(', ');
   }
@@ -136,7 +137,7 @@ export class MailDetails implements OnDestroy {
     this.previewUrls.forEach((url) => URL.revokeObjectURL(url));
   }
 
-  protected isPreviewable(attachment: Attachment): boolean {
+  isPreviewable(attachment: Attachment): boolean {
     return ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
       attachment.mimeType?.toLowerCase() || '',
     );

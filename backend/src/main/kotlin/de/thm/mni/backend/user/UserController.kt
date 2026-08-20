@@ -43,10 +43,14 @@ class UserController(
     @ApiResponse(responseCode = "200", description = "Users returned")
     @GetMapping
     fun getAllUsers(): List<UserDTO> {
-        return userService.getAllUsers().map { it -> it.toDTO() }
+        return userService.getAllUsers().map { it.toDTO() }
     }
 
-    @Operation(operationId = "getCurrentUser", summary = "Get current user", description = "Returns the local profile linked to the authenticated Keycloak identity.")
+    @Operation(
+        operationId = "getCurrentUser",
+        summary = "Get current user",
+        description = "Returns the local profile linked to the authenticated Keycloak identity.",
+    )
     @ApiResponse(responseCode = "200", description = "Current user returned")
     @GetMapping("/me")
     fun getCurrentUser(@AuthenticationPrincipal jwt: Jwt): UserDTO =
@@ -59,7 +63,11 @@ class UserController(
     fun getUserById(@PathVariable id: UUID): UserDTO =
         (userService.getUserById(id) ?: throw ResourceNotFoundException("User not found")).toDTO()
 
-    @Operation(operationId = "ensureExternalContact", summary = "Resolve an external contact", description = "Returns the contact for an email address and creates it when it does not yet exist.")
+    @Operation(
+        operationId = "ensureExternalContact",
+        summary = "Resolve an external contact",
+        description = "Returns the contact for an email address and creates it when it does not yet exist.",
+    )
     @ApiResponse(responseCode = "200", description = "External contact resolved")
     @ApiResponse(responseCode = "400", description = "Invalid contact data")
     @PostMapping("/ensure", consumes = [MediaType.APPLICATION_JSON_VALUE])
@@ -114,7 +122,7 @@ class UserController(
         )
         updatedUser.id = existingUser.id
 
-        return userService.updateUser(id, updatedUser).toDTO()
+        return userService.updateUser(updatedUser).toDTO()
     }
 
 

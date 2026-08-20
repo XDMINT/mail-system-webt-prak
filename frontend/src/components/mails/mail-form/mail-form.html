@@ -40,10 +40,11 @@
           </div>
           <div class="flex flex-col gap-4">
             <div class="flex flex-col gap-2">
-              <label class="text-sm font-semibold text-slate-700">To</label>
+              <label for="to-recipient" class="text-sm font-semibold text-slate-700">To</label>
               <div class="flex gap-2">
                 <input
                   #toInput
+                  id="to-recipient"
                   pInputText
                   type="text"
                   class="flex-grow"
@@ -51,7 +52,7 @@
                   [(ngModel)]="toInputValue"
                   [ngModelOptions]="{ standalone: true }"
                 />
-                <button pButton type="button" (click)="addToFromInput()" label="Add"></button>
+                <button pButton type="button" (click)="addToFromInput()">Add</button>
               </div>
               @if (selectedToUsers.length > 0) {
                 <div class="flex flex-wrap gap-2 mt-2">
@@ -72,10 +73,11 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label class="text-sm font-semibold text-slate-700">CC</label>
+              <label for="cc-recipient" class="text-sm font-semibold text-slate-700">CC</label>
               <div class="flex gap-2">
                 <input
                   #ccInput
+                  id="cc-recipient"
                   pInputText
                   type="text"
                   class="flex-grow"
@@ -83,7 +85,7 @@
                   [(ngModel)]="ccInputValue"
                   [ngModelOptions]="{ standalone: true }"
                 />
-                <button pButton type="button" (click)="addCcFromInput()" label="Add"></button>
+                <button pButton type="button" (click)="addCcFromInput()">Add</button>
               </div>
               @if (selectedCcUsers.length > 0) {
                 <div class="flex flex-wrap gap-2 mt-2">
@@ -104,10 +106,11 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label class="text-sm font-semibold text-slate-700">BCC</label>
+              <label for="bcc-recipient" class="text-sm font-semibold text-slate-700">BCC</label>
               <div class="flex gap-2">
                 <input
                   #bccInput
+                  id="bcc-recipient"
                   pInputText
                   type="text"
                   class="flex-grow"
@@ -115,7 +118,7 @@
                   [(ngModel)]="bccInputValue"
                   [ngModelOptions]="{ standalone: true }"
                 />
-                <button pButton type="button" (click)="addBccFromInput()" label="Add"></button>
+                <button pButton type="button" (click)="addBccFromInput()">Add</button>
               </div>
               @if (selectedBccUsers.length > 0) {
                 <div class="flex flex-wrap gap-2 mt-2">
