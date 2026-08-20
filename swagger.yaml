@@ -1,0 +1,1314 @@
+openapi: 3.1.0
+info:
+  title: Mail System API
+  description: "REST API for the THM Web Technologies mail system. The API supports\
+    \ JWT authentication, user management, drafting and sending mails, incoming mail\
+    \ retrieval, and protected attachment downloads."
+  contact:
+    name: Mail System Team
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: 1.0.0
+servers:
+- url: http://localhost:8080
+  description: Local backend server
+- url: http://localhost
+  description: Docker Compose frontend reverse proxy
+tags:
+- name: Mails
+  description: "Create drafts, send mails, list folders, retrieve incoming mail, and\
+    \ manage mail content."
+- name: Users
+  description: "Read user profiles, update the authenticated user, and create external\
+    \ contact users."
+- name: Attachments
+  description: Download mail attachments after sender or recipient access checks.
+- name: Authentication
+  description: "Register users, authenticate credentials, and issue JWT bearer tokens."
+paths:
+  /api/users/{id}:
+    get:
+      tags:
+      - Users
+      summary: Get a user
+      description: Returns the user profile for the supplied id.
+      operationId: getUserById
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: "User returned successfully. If the id is unknown, the current\
+            \ implementation returns an empty response body."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - Users
+      summary: Update the authenticated user
+      description: Updates the profile of the authenticated user. Users can only update
+        their own profile.
+      operationId: updateUser
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+        required: true
+      responses:
+        "200":
+          description: User updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+        "400":
+          description: "The request body, multipart payload, or query parameters are\
+            \ invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "409":
+          description: The request conflicts with an existing resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Users
+      summary: Delete the authenticated user
+      description: Deletes the authenticated user's own account.
+      operationId: deleteUser
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: User deleted successfully.
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/mails/{mailId}:
+    get:
+      tags:
+      - Mails
+      summary: Get a mail
+      description: Returns a full mail if the authenticated user is the sender or
+        a recipient. BCC recipients are only visible to the sender and matching BCC
+        recipient.
+      operationId: getMailById
+      parameters:
+      - name: mailId
+        in: path
+        description: Mail id.
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 6f1f9368-d279-4a6e-993f-f0618767eeb8
+      responses:
+        "200":
+          description: Mail returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailDTO"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - Mails
+      summary: Update a draft mail
+      description: "Replaces a draft mail's content, recipients, and attachments.\
+        \ Only the sender can update the mail, and sent mails cannot be modified."
+      operationId: updateDraftMail
+      parameters:
+      - name: mailId
+        in: path
+        description: Mail id.
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 6f1f9368-d279-4a6e-993f-f0618767eeb8
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/MailRequest"
+                attachments:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - attachments
+              - data
+      responses:
+        "200":
+          description: Draft mail updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailDTO"
+        "400":
+          description: "The request body, multipart payload, or query parameters are\
+            \ invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Mails
+      summary: Delete a mail
+      description: Deletes a mail owned by the authenticated user and removes its
+        stored attachments.
+      operationId: deleteDraftMail
+      parameters:
+      - name: mailId
+        in: path
+        description: Mail id.
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 6f1f9368-d279-4a6e-993f-f0618767eeb8
+      responses:
+        "204":
+          description: Mail deleted successfully.
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/users/ensure:
+    post:
+      tags:
+      - Users
+      summary: Ensure an external contact
+      description: "Looks up a user by normalized email. If none exists, creates an\
+        \ external contact user with generated credentials."
+      operationId: ensureExternalUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnsureUserRequest"
+        required: true
+      responses:
+        "200":
+          description: Existing or newly created contact returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnsureUserResponse"
+        "400":
+          description: "The request body, multipart payload, or query parameters are\
+            \ invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/register:
+    post:
+      tags:
+      - Authentication
+      summary: Register a user
+      description: Creates a new internal user account and immediately returns a JWT
+        bearer token for that user.
+      operationId: registerUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+        required: true
+      responses:
+        "201":
+          description: User registered successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: "The request body, multipart payload, or query parameters are\
+            \ invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "409":
+          description: The request conflicts with an existing resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+  /api/mails:
+    post:
+      tags:
+      - Mails
+      summary: Create a draft mail
+      description: Creates a draft for the authenticated user. Recipient ids are supplied
+        in the JSON `data` part; files are supplied as `attachments` parts.
+      operationId: createDraftMail
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/MailRequest"
+                attachments:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - attachments
+              - data
+      responses:
+        "201":
+          description: Draft mail created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailDTO"
+        "400":
+          description: "The request body, multipart payload, or query parameters are\
+            \ invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/mails/send:
+    post:
+      tags:
+      - Mails
+      summary: Create and send a mail
+      description: Creates a mail from multipart form data and immediately sends it
+        through the configured SMTP server.
+      operationId: createAndSendMail
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/MailRequest"
+                attachments:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - attachments
+              - data
+      responses:
+        "200":
+          description: Mail created and send attempt finished.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailDTO"
+        "400":
+          description: "The request body, multipart payload, or query parameters are\
+            \ invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/mails/send/{mailId}:
+    post:
+      tags:
+      - Mails
+      summary: Send an existing draft
+      description: Sends an existing draft owned by the authenticated user through
+        the configured SMTP server. The mail status becomes `SENT` on success or `ERROR`
+        if SMTP delivery fails.
+      operationId: sendDraftMail
+      parameters:
+      - name: mailId
+        in: path
+        description: Mail id.
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 6f1f9368-d279-4a6e-993f-f0618767eeb8
+      responses:
+        "200":
+          description: Send attempt finished.
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/login:
+    post:
+      tags:
+      - Authentication
+      summary: Authenticate a user
+      description: Validates credentials and returns the authenticated user profile
+        together with a JWT bearer token.
+      operationId: loginUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: Authentication successful.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: "The request body, multipart payload, or query parameters are\
+            \ invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, expired,\
+            \ or the credentials are invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+  /api/users:
+    get:
+      tags:
+      - Users
+      summary: List users
+      description: Returns all users known to the application. This list is used to
+        select recipients while composing mails.
+      operationId: listUsers
+      responses:
+        "200":
+          description: Users returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserDTO"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/mails/sent:
+    get:
+      tags:
+      - Mails
+      summary: List sent mails
+      description: Returns all sent mails created by the authenticated user.
+      operationId: listSentMails
+      responses:
+        "200":
+          description: Sent mails returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MailDTO"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/mails/incoming:
+    get:
+      tags:
+      - Mails
+      summary: List incoming mails
+      description: Returns a paged list of mails visible to the authenticated user
+        as recipient. Page numbers below 0 are treated as 0; sizes are clamped to
+        1..100.
+      operationId: listIncomingMails
+      parameters:
+      - name: page
+        in: query
+        description: Zero-based page index.
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+        example: 0
+      - name: size
+        in: query
+        description: Requested page size. The server clamps it to 1..100.
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 25
+        example: 25
+      responses:
+        "200":
+          description: Incoming mails returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseMailListItemDTO"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/mails/drafts:
+    get:
+      tags:
+      - Mails
+      summary: List draft mails
+      description: Returns all draft mails created by the authenticated user.
+      operationId: listDraftMails
+      responses:
+        "200":
+          description: Draft mails returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MailDTO"
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+  /api/attachments/{attachmentId}:
+    get:
+      tags:
+      - Attachments
+      summary: Download an attachment
+      description: Streams an attachment if the authenticated user is the sender or
+        recipient of the related mail. Unauthorized access is hidden as 404.
+      operationId: downloadAttachment
+      parameters:
+      - name: attachmentId
+        in: path
+        description: Attachment id.
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 3f75cd3b-3caa-4765-bdc3-c40279a1975a
+      responses:
+        "200":
+          description: Attachment file stream returned successfully. The response
+            content type is based on the stored attachment metadata.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: The requested resource does not exist or is not visible to
+            the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "401":
+          description: "Unauthorized. The bearer token is missing, invalid, or expired."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppError"
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    UserUpdate:
+      type: object
+      description: Request payload for updating the authenticated user's profile.
+      properties:
+        firstName:
+          type: string
+          description: Updated first name.
+          example: Ameline
+          maxLength: 2147483647
+          minLength: 1
+        lastName:
+          type: string
+          description: Updated last name.
+          example: Allanson
+          maxLength: 2147483647
+          minLength: 1
+        email:
+          type: string
+          format: email
+          description: Updated email address. Must not already be used by another
+            user.
+          example: ameline.allanson@example.com
+      required:
+      - email
+      - firstName
+      - lastName
+    AppError:
+      type: object
+      description: Standard error response returned by the backend.
+      properties:
+        status:
+          type: integer
+          format: int32
+          description: HTTP status code.
+          example: 404
+        message:
+          type:
+          - string
+          - "null"
+          description: Human-readable error message.
+          example: Mail not found
+      required:
+      - status
+    UserDTO:
+      type: object
+      description: Public user profile returned by the API.
+      properties:
+        id:
+          type:
+          - string
+          - "null"
+          format: uuid
+          description: Unique user id.
+          example: 6f1f9368-d279-4a6e-993f-f0618767eeb8
+        firstName:
+          type: string
+          description: User's first name.
+          example: Ameline
+        lastName:
+          type: string
+          description: User's last name.
+          example: Allanson
+        email:
+          type: string
+          description: User's email address.
+          example: aallanson@example.com
+      required:
+      - email
+      - firstName
+      - lastName
+    MailRequest:
+      type: object
+      description: "Mail payload used inside the multipart `data` part for creating,\
+        \ sending, and updating mails."
+      properties:
+        subject:
+          type: string
+          description: Mail subject. Replies may receive a ticket prefix when sent.
+          example: Support request
+          maxLength: 20
+          minLength: 1
+        content:
+          type: string
+          description: Plain text mail body.
+          example: "Hello, I need help with my account."
+          maxLength: 500
+          minLength: 1
+        toIds:
+          type: array
+          description: Direct recipient user ids.
+          items:
+            type: string
+            format: uuid
+        ccIds:
+          type: array
+          description: Carbon-copy recipient user ids.
+          items:
+            type: string
+            format: uuid
+        bccIds:
+          type: array
+          description: Blind-copy recipient user ids.
+          items:
+            type: string
+            format: uuid
+        replyToIds:
+          type: array
+          description: User ids this mail replies to.
+          items:
+            type: string
+            format: uuid
+      required:
+      - bccIds
+      - ccIds
+      - content
+      - replyToIds
+      - subject
+      - toIds
+    AttachmentDTO:
+      type: object
+      description: Metadata for a file attached to a mail.
+      properties:
+        id:
+          type:
+          - string
+          - "null"
+          format: uuid
+          description: Unique attachment id used for downloads.
+          example: 3f75cd3b-3caa-4765-bdc3-c40279a1975a
+        size:
+          type: integer
+          format: int64
+          description: Attachment size in bytes.
+          example: 18452
+        fileName:
+          type:
+          - string
+          - "null"
+          description: Original file name.
+          example: invoice.pdf
+        mimeType:
+          type:
+          - string
+          - "null"
+          description: Detected media type.
+          example: application/pdf
+        path:
+          type: string
+          description: "Internal storage key. Use the attachment id with `GET /api/attachments/{attachmentId}`\
+            \ instead of addressing this path directly."
+          example: attachments/3f75cd3b-3caa-4765-bdc3-c40279a1975a.pdf
+      required:
+      - path
+      - size
+    MailDTO:
+      type: object
+      description: "Complete mail representation for details, drafts, and sent mails."
+      properties:
+        id:
+          type:
+          - string
+          - "null"
+          format: uuid
+          description: Unique mail id.
+          example: 6f1f9368-d279-4a6e-993f-f0618767eeb8
+        sender:
+          $ref: "#/components/schemas/UserDTO"
+          description: Sender of the mail.
+        subject:
+          type: string
+          description: Mail subject.
+          example: Support request
+        content:
+          type: string
+          description: Mail body text.
+          example: "Hello, I need help with my account."
+        status:
+          type: string
+          description: Current mail status.
+          enum:
+          - DRAFT
+          - SENT
+          - ERROR
+        source:
+          type: string
+          description: Whether the mail originated inside the app or was imported
+            from IMAP.
+          enum:
+          - EXTERN
+          - INTERN
+        trackingCode:
+          type:
+          - string
+          - "null"
+          description: Ticket tracking code added to subjects of replies or imported
+            mails.
+          example: TICKET-3A9F1C7B
+        externalSenderEmail:
+          type:
+          - string
+          - "null"
+          description: Original sender address for imported external mails.
+          example: customer@example.com
+        to:
+          type: array
+          description: Visible direct recipients.
+          items:
+            $ref: "#/components/schemas/UserDTO"
+        cc:
+          type: array
+          description: Visible carbon-copy recipients.
+          items:
+            $ref: "#/components/schemas/UserDTO"
+        bcc:
+          type: array
+          description: Blind-copy recipients visible only to the sender and matching
+            BCC recipient.
+          items:
+            $ref: "#/components/schemas/UserDTO"
+        replyTo:
+          type: array
+          description: Users this mail replies to.
+          items:
+            $ref: "#/components/schemas/UserDTO"
+        attachments:
+          type: array
+          description: Attachment metadata.
+          items:
+            $ref: "#/components/schemas/AttachmentDTO"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp.
+          example: 2026-06-25T12:30:00
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp.
+          example: 2026-06-25T12:45:00
+        sentAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+          description: Timestamp at which the mail was sent or imported.
+          example: 2026-06-25T13:00:00
+      required:
+      - attachments
+      - bcc
+      - cc
+      - content
+      - createdAt
+      - replyTo
+      - sender
+      - source
+      - status
+      - subject
+      - to
+      - updatedAt
+    EnsureUserRequest:
+      type: object
+      description: Request payload for finding or creating an external contact user.
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address of the external contact. The server normalizes
+            it before lookup.
+          example: customer@example.com
+          minLength: 1
+        firstName:
+          type:
+          - string
+          - "null"
+          description: "Optional first name. If omitted or blank, the server uses\
+            \ `External`."
+          example: Chris
+        lastName:
+          type:
+          - string
+          - "null"
+          description: "Optional last name. If omitted or blank, the server uses `User`."
+          example: Customer
+      required:
+      - email
+    EnsureUserResponse:
+      type: object
+      description: External contact user returned after lookup or creation.
+      properties:
+        id:
+          type:
+          - string
+          - "null"
+          format: uuid
+          description: Unique contact user id.
+          example: 4ff9c0df-c0f5-4fa2-a7d5-6e517f22186c
+        firstName:
+          type: string
+          description: Contact first name.
+          example: External
+        lastName:
+          type: string
+          description: Contact last name.
+          example: User
+        email:
+          type: string
+          description: Contact email address.
+          example: customer@example.com
+      required:
+      - email
+      - firstName
+      - lastName
+    RegisterRequest:
+      type: object
+      description: Request payload for creating a new internal user account.
+      properties:
+        firstName:
+          type: string
+          description: User's first name.
+          example: Ameline
+          maxLength: 2147483647
+          minLength: 1
+        lastName:
+          type: string
+          description: User's last name.
+          example: Allanson
+          maxLength: 2147483647
+          minLength: 1
+        email:
+          type: string
+          format: email
+          description: Unique email address used for login.
+          example: aallanson@example.com
+        password:
+          type: string
+          description: Initial password. Must be at least 6 characters long.
+          example: "123456"
+          maxLength: 2147483647
+          minLength: 6
+      required:
+      - email
+      - firstName
+      - lastName
+      - password
+    AuthResponse:
+      type: object
+      description: Authentication result containing the user profile and a JWT bearer
+        token.
+      properties:
+        user:
+          $ref: "#/components/schemas/UserDTO"
+          description: Authenticated user profile.
+        token:
+          type: string
+          description: "JWT bearer token. Send this token as `Authorization: Bearer\
+            \ <token>` for protected endpoints."
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      required:
+      - token
+      - user
+    LoginRequest:
+      type: object
+      description: Credentials used to authenticate an existing user.
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address of the registered user.
+          example: aallanson@example.com
+        password:
+          type: string
+          description: User password. Must be at least 6 characters long.
+          example: "123456"
+          maxLength: 2147483647
+          minLength: 6
+      required:
+      - email
+      - password
+    MailListItemDTO:
+      type: object
+      description: Compact mail preview used by paged inbox listings.
+      properties:
+        id:
+          type:
+          - string
+          - "null"
+          format: uuid
+          description: Unique mail id.
+          example: 6f1f9368-d279-4a6e-993f-f0618767eeb8
+        sender:
+          $ref: "#/components/schemas/UserDTO"
+          description: Sender of the mail.
+        subject:
+          type: string
+          description: Mail subject.
+          example: "[TICKET-3A9F1C7B] Support request"
+        content:
+          type: string
+          description: Body preview. The server truncates the content to 240 characters.
+          example: "Hello, I need help with my account."
+        status:
+          type: string
+          description: Current mail status.
+          enum:
+          - DRAFT
+          - SENT
+          - ERROR
+        source:
+          type: string
+          description: Whether the mail originated inside the app or was imported
+            from IMAP.
+          enum:
+          - EXTERN
+          - INTERN
+        trackingCode:
+          type:
+          - string
+          - "null"
+          description: Ticket tracking code.
+          example: TICKET-3A9F1C7B
+        externalSenderEmail:
+          type:
+          - string
+          - "null"
+          description: Original sender address for imported external mails.
+          example: customer@example.com
+        attachmentCount:
+          type: integer
+          format: int32
+          description: Number of attachments on this mail.
+          example: 2
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp.
+          example: 2026-06-25T12:30:00
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp.
+          example: 2026-06-25T12:45:00
+        sentAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+          description: Timestamp at which the mail was sent or imported.
+          example: 2026-06-25T13:00:00
+      required:
+      - attachmentCount
+      - content
+      - createdAt
+      - sender
+      - source
+      - status
+      - subject
+      - updatedAt
+    PageResponseMailListItemDTO:
+      type: object
+      description: Generic page response wrapper.
+      properties:
+        content:
+          type: array
+          description: Items on the current page.
+          items:
+            $ref: "#/components/schemas/MailListItemDTO"
+        page:
+          type: integer
+          format: int32
+          description: Zero-based page index.
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Effective page size.
+          example: 25
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of matching items.
+          example: 142
+        totalPages:
+          type: integer
+          format: int32
+          description: Total number of available pages.
+          example: 6
+        hasNext:
+          type: boolean
+          description: Whether another page exists after the current page.
+          example: true
+      required:
+      - content
+      - hasNext
+      - page
+      - size
+      - totalElements
+      - totalPages
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: "JWT access token returned by `POST /api/login` or `POST /api/register`.\
+        \ Use the `Authorization: Bearer <token>` header."
+      scheme: bearer
+      bearerFormat: JWT

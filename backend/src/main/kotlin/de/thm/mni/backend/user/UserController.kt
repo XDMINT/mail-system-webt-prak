@@ -3,13 +3,23 @@ package de.thm.mni.backend.user
 
 import de.thm.mni.backend.error.ResourceAlreadyExistsException
 import de.thm.mni.backend.error.ResourceNotFoundException
+import de.thm.mni.backend.openapi.BadRequestApiError
+import de.thm.mni.backend.openapi.ConflictApiError
+import de.thm.mni.backend.openapi.DefaultApiErrors
+import de.thm.mni.backend.openapi.NotFoundApiError
 import de.thm.mni.backend.user.dto.EnsureUserRequest
 import de.thm.mni.backend.user.dto.EnsureUserResponse
 import de.thm.mni.backend.user.dto.UserDTO
 import de.thm.mni.backend.user.dto.UserUpdate
 import de.thm.mni.backend.user.dto.toDTO
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -26,21 +36,55 @@ import java.util.UUID
 
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/users", produces = [MediaType.APPLICATION_JSON_VALUE])
+@Tag(
+    name = "Users",
+    description = "Read user profiles, update the authenticated user, and create external contact users."
+)
+@SecurityRequirement(name = "bearerAuth")
+@DefaultApiErrors
 class UserController(private val userService: UserService, private val passwordEncoder: PasswordEncoder) {
 
 
     @GetMapping
+    @Operation(
+        operationId = "listUsers",
+        summary = "List users",
+        description = "Returns all users known to the application. This list is used to select recipients while composing mails."
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "Users returned successfully."
+    )
     fun getAllUsers(): List<UserDTO> {
         return userService.getAllUsers().map { it -> it.toDTO() }
     }
 
     @GetMapping("/{id}")
+    @Operation(
+        operationId = "getUserById",
+        summary = "Get a user",
+        description = "Returns the user profile for the supplied id."
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "User returned successfully. If the id is unknown, the current implementation returns an empty response body."
+    )
     fun getUserById(@PathVariable id: UUID): UserDTO? {
         return userService.getUserById(id)?.toDTO()
     }
 
-    @PostMapping("/ensure")
+    @PostMapping("/ensure", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    @Operation(
+        operationId = "ensureExternalUser",
+        summary = "Ensure an external contact",
+        description = "Looks up a user by normalized email. If none exists, creates an external contact user with generated credentials."
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "Existing or newly created contact returned successfully."
+    )
+    @BadRequestApiError
     fun ensureUser(@Valid @RequestBody data: EnsureUserRequest): EnsureUserResponse {
         val normalizedEmail = data.email.trim().lowercase()
         val user = userService.getUserByEmail(normalizedEmail) ?: userService.createUser(
@@ -61,10 +105,22 @@ class UserController(private val userService: UserService, private val passwordE
         )
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id}", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    @Operation(
+        operationId = "updateUser",
+        summary = "Update the authenticated user",
+        description = "Updates the profile of the authenticated user. Users can only update their own profile."
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "User updated successfully."
+    )
+    @BadRequestApiError
+    @NotFoundApiError
+    @ConflictApiError
     fun updateUser(@PathVariable id: UUID,
                    @Valid @RequestBody userData: UserUpdate,
-                   @AuthenticationPrincipal user: UserDetails): UserDTO? {
+                   @Parameter(hidden = true) @AuthenticationPrincipal user: UserDetails): UserDTO? {
         val existingUser = userService.getUserById(id) ?: throw ResourceNotFoundException("User not found")
 
         if(existingUser.id.toString() != user.username) {
@@ -92,7 +148,14 @@ class UserController(private val userService: UserService, private val passwordE
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun deleteUser(@PathVariable id: UUID, @AuthenticationPrincipal user: UserDetails) {
+    @Operation(
+        operationId = "deleteUser",
+        summary = "Delete the authenticated user",
+        description = "Deletes the authenticated user's own account."
+    )
+    @ApiResponse(responseCode = "204", description = "User deleted successfully.")
+    @NotFoundApiError
+    fun deleteUser(@PathVariable id: UUID, @Parameter(hidden = true) @AuthenticationPrincipal user: UserDetails) {
         val existingUser = userService.getUserById(id) ?: throw ResourceNotFoundException("User not found")
         if(existingUser.id.toString() != user.username) {
             throw ResourceNotFoundException("User not found")

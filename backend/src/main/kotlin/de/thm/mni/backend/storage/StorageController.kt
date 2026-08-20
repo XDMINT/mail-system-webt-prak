@@ -3,6 +3,13 @@ package de.thm.mni.backend.storage
 import de.thm.mni.backend.attachment.AttachmentRepository
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.openapi.DefaultApiErrors
+import de.thm.mni.backend.openapi.NotFoundApiError
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.core.io.Resource
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
@@ -20,15 +27,32 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/attachments")
+@Tag(
+    name = "Attachments",
+    description = "Download mail attachments after sender or recipient access checks."
+)
+@SecurityRequirement(name = "bearerAuth")
+@DefaultApiErrors
 class StorageController(
     private val fileStorageService: FileStorageService,
     private val attachmentRepository: AttachmentRepository,
     private val mailRecordService: MailRecordService,
 ) {
     @GetMapping("/{attachmentId}")
+    @Operation(
+        operationId = "downloadAttachment",
+        summary = "Download an attachment",
+        description = "Streams an attachment if the authenticated user is the sender or recipient of the related mail. Unauthorized access is hidden as 404."
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "Attachment file stream returned successfully. The response content type is based on the stored attachment metadata."
+    )
+    @NotFoundApiError
     fun getAttachment(
+        @Parameter(description = "Attachment id.", example = "3f75cd3b-3caa-4765-bdc3-c40279a1975a")
         @PathVariable attachmentId: UUID,
-        @AuthenticationPrincipal user: UserDetails,
+        @Parameter(hidden = true) @AuthenticationPrincipal user: UserDetails,
     ): ResponseEntity<Resource> {
         val attachment = attachmentRepository.findById(attachmentId).orElse(null)
             ?: throw ResourceNotFoundException("Attachment not found")

@@ -300,17 +300,7 @@ export class MailForm implements OnInit, OnChanges {
             mailData.bccIds = bccIds;
             mailData.replyToIds = replyToIds;
 
-            if (this.mailData) {
-              this.mailsService.updateMails(this.mailData.id, mailData, attachments).subscribe({
-                next: () => this.handleMailSuccess('Mail updated successfully', '/mails/drafts'),
-                error: (error) => this.handleMailError(error, 'Failed to update mail'),
-              });
-            } else {
-              this.mailsService.createAndSendMail(mailData, attachments).subscribe({
-                next: () => this.handleMailSuccess('Mail sent successfully', '/mails/sent'),
-                error: (error) => this.handleMailError(error, 'Failed to send mail'),
-              });
-            }
+
 
           });
         });
@@ -318,7 +308,15 @@ export class MailForm implements OnInit, OnChanges {
     });
 
     if (this.mailData) {
-      return; // already handled in ensure chain
+      this.mailsService.updateMails(this.mailData.id, mailData, attachments).subscribe({
+        next: () => this.handleMailSuccess('Mail updated successfully', '/mails/drafts'),
+        error: (error) => this.handleMailError(error, 'Failed to update mail'),
+      });
+    } else {
+      this.mailsService.createAndSendMail(mailData, attachments).subscribe({
+        next: () => this.handleMailSuccess('Mail sent successfully', '/mails/sent'),
+        error: (error) => this.handleMailError(error, 'Failed to send mail'),
+      });
     }
   }
 

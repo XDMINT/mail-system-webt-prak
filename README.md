@@ -189,3 +189,4 @@ Die API-Dokumentation ist im Backend ohne Login erreichbar:
 - `GET /v3/api-docs.yaml`
 - `GET /swagger-ui/index.html`
 
+Die aus SpringDoc generierte OpenAPI-Datei liegt zusaetzlich als [`swagger.yml`](swagger.yml) und, passend zur PDF/IntelliJ-Konvention, als [`swagger.yaml`](swagger.yaml) im Repository.
