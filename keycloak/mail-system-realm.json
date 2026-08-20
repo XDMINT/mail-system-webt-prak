@@ -21,19 +21,19 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "frontchannelLogout": true,
-      "rootUrl": "http://localhost",
+      "rootUrl": "https://localhost",
       "baseUrl": "/",
       "redirectUris": [
-        "http://localhost/*",
+        "https://localhost/*",
         "http://localhost:4200/*"
       ],
       "webOrigins": [
-        "http://localhost",
+        "https://localhost",
         "http://localhost:4200"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost/*##http://localhost:4200/*"
+        "post.logout.redirect.uris": "https://localhost/*##http://localhost:4200/*"
       },
       "defaultClientScopes": [
         "web-origins",

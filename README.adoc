@@ -6,7 +6,7 @@
 
 This repository contains a university project for a shared email-support application. Registered internal users can work with mails through an Angular client and a Spring Boot API. PostgreSQL stores business data and SeaweedFS provides S3-compatible attachment storage. SMTP and IMAP connect the application to the configurable support mailbox.
 
-The current implementation includes the reproducible one-command build/start workflow, Keycloak/OpenID Connect, the shared support-reply flow and the final flag-based IMAP strategy. Later assignment phases, including WAF/TLS/NIDS, linting and C4 documentation, remain tracked in `PROJEKTPLAN.md`. This document does not claim those phases are already complete.
+The current implementation includes the reproducible one-command build/start workflow, Keycloak/OpenID Connect, the shared support-reply flow, the final flag-based IMAP strategy and the security infrastructure required by the assignment. Linting, dependency maintenance and C4 documentation remain tracked in `PROJEKTPLAN.md`; C4 is intentionally handled separately.
 
 == Technology stack
 
@@ -16,7 +16,7 @@ The current implementation includes the reproducible one-command build/start wor
 * Keycloak and OpenID Connect
 * PostgreSQL
 * SeaweedFS with its S3-compatible API
-* Caddy and Docker Compose
+* Caddy, ModSecurity with OWASP CRS, Snort and Docker Compose
 * H2 for backend tests and Vitest through Angular for frontend tests
 
 == Authentication and authorization
@@ -39,7 +39,7 @@ The following imported users all use the development password `demo-password`:
 |Alikee Raisbeck |`araisbeck4@example.com`
 |===
 
-Keycloak deliberately uses `start-dev` for the local course demonstrator. TLS termination with the supplied self-signed WAF approach belongs to the separate security-infrastructure phase.
+Keycloak deliberately uses `start-dev` on an isolated internal network for the local course demonstrator. The public issuer, redirect and logout URLs use HTTPS because the only public path terminates TLS at the ModSecurity WAF.
 
 == Production-style container build and start
 
@@ -70,7 +70,7 @@ On Linux or macOS:
 ./gradlew composeUp
 ----
 
-The task installs locked frontend dependencies with `npm ci`, runs backend and frontend tests, creates the Angular production output, builds the container images and starts the complete Compose stack. The application is available at http://localhost.
+The task installs locked frontend dependencies with `npm ci`, runs backend and frontend tests, creates the Angular production output, builds the container images and starts the complete Compose stack. The application is available at https://localhost. The supplied development certificate is intentionally self-signed and must be accepted once in the browser. Requests to http://localhost are redirected to HTTPS.
 
 Stop all services without deleting persistent data:
 
@@ -97,21 +97,37 @@ npm ci
 npm start
 ----
 
-The configured Angular development proxy forwards `/api`, `/auth`, `/v3/api-docs` and `/swagger-ui` to http://localhost. The development UI is available at http://localhost:4200.
+The configured Angular development proxy forwards `/api`, `/auth`, `/v3/api-docs` and `/swagger-ui` to https://localhost and accepts the local self-signed certificate. The development UI is available at http://localhost:4200.
 
 == Runtime services
 
 [cols="2,4",options="header"]
 |===
 |Service |Responsibility
-|`frontend` |Caddy, Angular static files and the single public local port 80
+|`ips` |Snort inline NFQUEUE demonstrator and the only published host ports, 80 and 443
+|`proxy` |ModSecurity with OWASP CRS, HTTP-to-HTTPS redirect, TLS termination and reverse proxy
+|`frontend` |Non-root Caddy process serving only Angular static files on the internal web network
 |`backend` |REST API, business logic, SMTP/IMAP and S3 access
 |`keycloak` |OIDC realm, login and access tokens
 |`database` |PostgreSQL persistence
 |`seaweedfs` |S3-compatible attachment storage
 |===
 
-Caddy routes `/auth/*` to Keycloak and `/api/*`, `/v3/api-docs*` and `/swagger-ui*` to the backend. Backend, database, Keycloak and SeaweedFS are not directly published to the host.
+Traffic follows `browser -> ips -> proxy`. The proxy routes `/auth/*` to Keycloak, `/api/*`, `/v3/api-docs*` and `/swagger-ui*` to the backend, and `/` to the static frontend. No application or data service is directly published to the host.
+
+== Security infrastructure
+
+Five Compose networks implement the small, explicit separation expected by the lecture exercise:
+
+* `ingress`: Snort and the WAF
+* `web`: WAF and static frontend
+* `application`: WAF, backend and Keycloak
+* `database`: backend and PostgreSQL
+* `storage`: backend and SeaweedFS
+
+All services use `no-new-privileges` and drop all Linux capabilities before adding back only those verified as necessary. Read-only root filesystems, non-root users and bounded `tmpfs` mounts are applied where the concrete images support them. Keycloak remains writable because its course-approved `start-dev` command writes below `/opt/keycloak/lib`; the ModSecurity image generates runtime configuration; PostgreSQL requires its data volume and five initialization/runtime capabilities; Snort runs as root with the five capabilities needed for iptables/NFQUEUE and a writable generated configuration. SeaweedFS persists only `/data` and otherwise runs read-only as UID 1000.
+
+The WAF keeps OWASP CRS active at blocking paranoia level 2 and detection level 3. Narrow target exclusions cover only Keycloak's validated redirect/token syntax and the binary/JSON parts of the mail multipart endpoints. A SQL-injection probe remains blocked. Full rationale and the verified public-path behavior are documented in `SECURITY.md` and `VERIFICATION_CHECKLIST.md`.
 
 == Configuration groups
 
@@ -141,9 +157,9 @@ Attachment validation is shared by HTTP uploads and IMAP imports. Normalized fil
 
 The backend generates the current OpenAPI 3.1 description from code and annotations at startup. Its global security declaration references the Keycloak OpenID Connect discovery endpoint. All operations have stable operation IDs, functional tags, summaries, descriptions, success/error responses and documented payload schemas including required properties. Error responses consistently reference the documented `AppError` body.
 
-* Swagger UI: http://localhost/swagger-ui/index.html
-* JSON: http://localhost/v3/api-docs
-* YAML: http://localhost/v3/api-docs.yaml
+* Swagger UI: https://localhost/swagger-ui/index.html
+* JSON: https://localhost/v3/api-docs
+* YAML: https://localhost/v3/api-docs.yaml
 
 The documentation endpoints are public. Application endpoints below `/api/**` require a valid Keycloak access token.
 
@@ -153,8 +169,11 @@ The documentation endpoints are public. Application endpoints below `/api/**` re
 backend/                 Spring Boot source and tests
 frontend/                Angular source, tests and Docker build
 keycloak/                Realm, OIDC client and development users
+proxy/                   WAF routes and supplied development certificate
+ips/                     Adapted Snort inline lecture demonstrator
 docker-compose.yml       Complete local stack
 .env.example             Non-secret configuration reference
+SECURITY.md              Security architecture and justified exceptions
 PROJEKTPLAN.md           Verified decisions, status and remaining work
 ....
 

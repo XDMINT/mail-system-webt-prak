@@ -29,6 +29,23 @@
 - [x] Die generierte Spezifikation enthält die globale Keycloak-OIDC-Anforderung.
 - [x] Frontend- und Backendtests sowie Produktionsbuild laufen über Gradle.
 
+## Security-Infrastruktur
+
+- [x] Nur der Snort-Service veröffentlicht die Host-Ports 80 und 443.
+- [x] HTTP wird am ModSecurity-Proxy auf HTTPS umgeleitet.
+- [x] Das selbstsignierte Vorlesungszertifikat wird als Compose-Secret eingebunden.
+- [x] Frontend, API, Swagger/OpenAPI und Keycloak sind ausschließlich über Snort und WAF erreichbar.
+- [x] Die fünf Netze `ingress`, `web`, `application`, `database` und `storage` trennen die erforderlichen Kommunikationswege.
+- [x] OWASP CRS läuft im Blocking-Modus; ein SQL-Injection-Test wird mit HTTP 403 abgewiesen.
+- [x] WAF-Auditlogs enthalten Regelmeldungen, aber keine Authorization-/Cookie-Header oder Mail-Request-Bodies.
+- [x] Keycloak Authorization Code Flow mit PKCE, Tokenaustausch und Logout funktionieren über HTTPS/WAF.
+- [x] Ein authentifizierter API-Aufruf funktioniert über den vollständigen öffentlichen Pfad.
+- [x] Multipart-Upload, PNG-Inline-Vorschau und Löschung des Testentwurfs funktionieren durch die WAF.
+- [x] Snort verarbeitet beide öffentlichen Ports im NFQUEUE-Inline-Modus.
+- [x] Alle Container verwenden `no-new-privileges` und verlieren zunächst alle Capabilities.
+- [x] Read-only-Dateisysteme, Nicht-Root-Benutzer und `tmpfs` sind serviceweise soweit verifiziert möglich gesetzt.
+- [x] Notwendige Ausnahmen für PostgreSQL, SeaweedFS, Keycloak, ModSecurity und Snort sind in `SECURITY.md` begründet.
+
 ## Manueller Demoablauf ohne THM-Zugangsdaten
 
 1. Stack mit `./gradlew composeUp` beziehungsweise `.\gradlew.bat composeUp` starten.

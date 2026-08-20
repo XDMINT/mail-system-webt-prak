@@ -6,7 +6,7 @@ University project for a shared mail-support application. The current stack cons
 - Angular, PrimeNG and Tailwind CSS
 - Keycloak with OpenID Connect Authorization Code Flow and PKCE
 - PostgreSQL and SeaweedFS (S3-compatible attachment storage)
-- Docker Compose and Caddy as the local web entry point
+- Docker Compose, ModSecurity with OWASP CRS, Snort and Caddy for static files
 
 The repository is a Gradle monorepo. The detailed implementation plan and the distinction between completed and pending assignment items are documented in `PROJEKTPLAN.md`. C4 documentation is intentionally handled separately.
 
@@ -52,10 +52,10 @@ This one command:
 1. installs frontend dependencies reproducibly with `npm ci`;
 2. runs the backend and frontend tests;
 3. creates the Angular production build;
-4. builds the backend and frontend container images;
-5. starts PostgreSQL, SeaweedFS, Keycloak, backend and frontend with Docker Compose.
+4. builds the backend, frontend and Snort container images;
+5. starts the complete seven-service stack with Docker Compose.
 
-Open the application at <http://localhost>. Stop the stack with:
+Open the application at <https://localhost>. The certificate is intentionally self-signed, so the browser must accept it once for this local course demonstrator. HTTP requests are redirected to HTTPS. Stop the stack with:
 
 ```powershell
 .\gradlew.bat composeDown
@@ -77,7 +77,7 @@ The imported development users all use the password `demo-password`:
 
 The users are initialized both in Keycloak and as passwordless local business profiles with matching stable OIDC subjects. Local login, local registration, application passwords and application-issued JWTs are intentionally not present.
 
-For this local university demonstrator Keycloak runs with `start-dev` behind Caddy over HTTP. TLS termination at the self-signed WAF is a separate assignment phase.
+For this local university demonstrator Keycloak runs with `start-dev` on its isolated internal network. The only public path terminates HTTPS at the ModSecurity WAF; Keycloak therefore publishes HTTPS issuer, redirect and logout URLs even though the internal proxy hop uses HTTP.
 
 ## Local development
 
@@ -89,7 +89,7 @@ npm ci
 npm start
 ```
 
-The development proxy forwards `/api`, `/auth` and the OpenAPI routes to the Compose entry point. Open <http://localhost:4200>.
+The development proxy forwards `/api`, `/auth` and the OpenAPI routes to the HTTPS Compose entry point while accepting the local development certificate. Open <http://localhost:4200>.
 
 Useful verification commands:
 
@@ -105,9 +105,9 @@ The Angular production build currently reports its pre-existing initial-bundle b
 
 The backend generates its OpenAPI 3.1 description from the running code and annotations. Every operation has a stable operation ID, a summary, a description, success and error responses, and a functional tag. Request/response DTOs, required properties and the common JSON error body are described as schemas. The global authentication requirement uses the Keycloak OpenID Connect discovery URL.
 
-- Swagger UI: <http://localhost/swagger-ui/index.html>
-- JSON: <http://localhost/v3/api-docs>
-- YAML: <http://localhost/v3/api-docs.yaml>
+- Swagger UI: <https://localhost/swagger-ui/index.html>
+- JSON: <https://localhost/v3/api-docs>
+- YAML: <https://localhost/v3/api-docs.yaml>
 
 The OpenAPI endpoints are public; application API endpoints under `/api/**` require a valid Keycloak access token.
 
@@ -121,12 +121,23 @@ HTTP uploads and IMAP attachments share configurable file and total-size limits.
 
 SMTP and IMAP are optional for the local demo and are disabled when their hosts or credentials are empty. Configure real THM credentials only in the local `.env`; all supported values are listed in `.env.example`.
 
+## Security infrastructure
+
+Snort is the only service that publishes host ports 80 and 443. It forwards both ports through an inline NFQUEUE to the ModSecurity/OWASP-CRS proxy. The proxy redirects HTTP to HTTPS, terminates the supplied self-signed certificate and routes only the required frontend, API, OpenAPI and Keycloak paths. PostgreSQL, SeaweedFS, Keycloak, backend and frontend are not directly host-accessible.
+
+Five Compose networks separate ingress, web, application, database and attachment-storage traffic. Every service drops Linux capabilities and enables `no-new-privileges`; read-only root filesystems, non-root users and bounded `tmpfs` mounts are applied wherever the verified image behavior permits them. The exact network layout, WAF tuning and justified exceptions for PostgreSQL, Keycloak, SeaweedFS, ModSecurity and Snort are documented in `SECURITY.md`.
+
+The public path was verified for the HTTPS redirect, application, Swagger/OpenAPI, unauthorized API behavior, a blocked SQL-injection probe, PKCE login/token/logout, an authenticated API call and a real multipart attachment upload with inline preview and cleanup. The results and manual verification scope are documented in `SECURITY.md` and `VERIFICATION_CHECKLIST.md`.
+
 ## Repository layout
 
 - `backend/` — Spring Boot application and tests
 - `frontend/` — Angular application, tests and self-contained container build
 - `keycloak/` — reproducible development realm, OIDC client and demo users
+- `proxy/` — WAF routing and the supplied self-signed development certificate
+- `ips/` — adapted Snort inline demonstrator from the lecture template
 - `docker-compose.yml` — complete local application stack
+- `SECURITY.md` — network, WAF, TLS, NIPS and hardening decisions
 - `.env.example` — non-secret configuration reference
 - `PROJEKTPLAN.md` — verified decisions, status and remaining assignment phases
 
