@@ -16,9 +16,8 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { TextareaModule } from 'primeng/textarea';
 import { FileRemoveEvent, FileSelectEvent, FileUploadModule } from 'primeng/fileupload';
 import { User } from '../../../types/user';
-import { CreateMail, Mail } from '../../../types/mails';
+import { CreateMail, Mail, UpdateMail } from '../../../types/mails';
 import { InputTextModule } from 'primeng/inputtext';
-import { ImageModule } from 'primeng/image';
 import { Attachment } from '../../../types/attachment';
 
 @Component({
@@ -33,7 +32,6 @@ import { Attachment } from '../../../types/attachment';
     FileUploadModule,
     Toast,
     InputTextModule,
-    ImageModule,
     MultiSelectModule,
   ],
   templateUrl: './mail-form.html',
@@ -117,7 +115,7 @@ export class MailForm implements OnInit, OnChanges {
   }
 
   onExistingFileRemove(attachment: Attachment) {
-    this.attachments.set(this.attachments().filter((att) => att.url !== attachment.url));
+    this.attachments.set(this.attachments().filter((att) => att.id !== attachment.id));
   }
 
   private recipientsNotEmpty(): boolean {
@@ -150,29 +148,24 @@ export class MailForm implements OnInit, OnChanges {
     return true;
   }
 
-  private buildMailData(): CreateMail | null {
+  private buildMailData(): CreateMail | UpdateMail {
     const subject = this.mailForm.get('subject')?.value || '';
     const content = this.mailForm.get('content')?.value || '';
     // We'll resolve email addresses to user IDs later via ensureAllRecipientsExist
-    return {
+    const mail: CreateMail = {
       subject,
       content,
       toIds: [],
       ccIds: [],
       bccIds: [],
     };
+    return this.mailData
+      ? { ...mail, retainedAttachmentIds: this.attachments().map((attachment) => attachment.id) }
+      : mail;
   }
 
   private buildAttachmentData(): File[] {
-    const newAttachments = this.uploadedFiles().map((file) => file);
-    const existingAttachments = this.attachments().map((att) =>
-      this.blobToFile(att.blob!, att.fileName),
-    );
-    return [...newAttachments, ...existingAttachments];
-  }
-
-  private blobToFile(blob: Blob, filename: string): File {
-    return new File([blob], filename, { type: blob.type });
+    return this.uploadedFiles();
   }
 
   // Add email helpers for the input fallback
@@ -260,7 +253,6 @@ export class MailForm implements OnInit, OnChanges {
     }
 
     const mailData = this.buildMailData();
-    if (mailData === null) return;
     const attachments = this.buildAttachmentData();
     this.isLoading.set(true);
     if (!(await this.resolveRecipientIds(mailData))) {
@@ -269,7 +261,7 @@ export class MailForm implements OnInit, OnChanges {
     }
 
     if (this.mailData) {
-      this.mailsService.updateMails(this.mailData.id, mailData, attachments).subscribe({
+      this.mailsService.updateMails(this.mailData.id, mailData as UpdateMail, attachments).subscribe({
         next: (updatedMail) => {
           this.mailsService.sendMail(updatedMail.id).subscribe({
             next: () => this.handleMailSuccess('Mail sent successfully', '/mails/sent'),
@@ -293,7 +285,6 @@ export class MailForm implements OnInit, OnChanges {
     }
 
     const mailData = this.buildMailData();
-    if (mailData === null) return; // mapping error already shown to user
     const attachments = this.buildAttachmentData();
     this.isLoading.set(true);
     if (!(await this.resolveRecipientIds(mailData))) {
@@ -302,7 +293,7 @@ export class MailForm implements OnInit, OnChanges {
     }
 
     const request = this.mailData
-      ? this.mailsService.updateMails(this.mailData.id, mailData, attachments)
+      ? this.mailsService.updateMails(this.mailData.id, mailData as UpdateMail, attachments)
       : this.mailsService.createDraft(mailData, attachments);
     request.subscribe({
         next: () => this.handleMailSuccess('Mail saved as draft', '/mails/drafts'),
@@ -319,6 +310,7 @@ export class MailForm implements OnInit, OnChanges {
     this.ccInputValue = '';
     this.bccInputValue = '';
     this.uploadedFiles.set([]);
+    this.attachments.set([]);
   }
 
   // Ensure that for each entered email an existing user ID exists; create users if necessary.

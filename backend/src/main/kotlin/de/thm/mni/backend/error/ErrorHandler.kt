@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 
 
 @RestControllerAdvice
@@ -47,6 +48,13 @@ class ErrorHandler {
         log.warn("Mail delivery failed: {}", err.message)
         val error = AppError(HttpStatus.BAD_GATEWAY.value(), err.message)
         return ResponseEntity<AppError>(error, HttpStatus.BAD_GATEWAY)
+    }
+
+    @ExceptionHandler(AttachmentTooLargeException::class, MaxUploadSizeExceededException::class)
+    fun handleAttachmentTooLarge(err: Exception): ResponseEntity<AppError> {
+        log.warn("Attachment rejected because it exceeds the configured size limit: {}", err.message)
+        val error = AppError(HttpStatus.PAYLOAD_TOO_LARGE.value(), "Attachment exceeds the configured size limit")
+        return ResponseEntity<AppError>(error, HttpStatus.PAYLOAD_TOO_LARGE)
     }
 
     // Handle all other exceptions

@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
 class MailMapper(private val mailRecordService: MailRecordService) {
     fun toListItemDTO(mail: Mail): MailListItemDTO {
         return MailListItemDTO(
-            id = mail.id,
+            id = requireNotNull(mail.id) { "Cannot map a mail without an identifier" },
             sender = mail.sender?.toDTO()!!,
             subject = mail.subject,
             content = mail.content.take(PREVIEW_LENGTH),
@@ -34,7 +34,7 @@ class MailMapper(private val mailRecordService: MailRecordService) {
     fun toDTO(user: User, mail: Mail): MailDTO {
         val records = mailRecordService.getMailRecordByMailId(mail.id!!)
         return MailDTO(
-            id = mail.id,
+            id = requireNotNull(mail.id) { "Cannot map a mail without an identifier" },
             sender = mail.sender?.toDTO()!!,
             subject = mail.subject,
             content = mail.content,

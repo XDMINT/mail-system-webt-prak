@@ -23,4 +23,10 @@ describe('MailDetails', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('should only preview safe raster image types', () => {
+    expect((component as any).isPreviewable({ mimeType: 'image/png' })).toBe(true);
+    expect((component as any).isPreviewable({ mimeType: 'image/svg+xml' })).toBe(false);
+    expect((component as any).isPreviewable({ mimeType: 'text/html' })).toBe(false);
+  });
 });

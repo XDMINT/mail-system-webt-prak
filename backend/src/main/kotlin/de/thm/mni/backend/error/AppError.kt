@@ -1,11 +1,11 @@
 package de.thm.mni.backend.error
 
-class AppError {
-    val status: Int
-    val message: String?
+import io.swagger.v3.oas.annotations.media.Schema
 
-    constructor(status: Int, message: String?) {
-        this.status = status
-        this.message = message
-    }
-}
+@Schema(description = "Standard error response returned by the API.")
+data class AppError(
+    @field:Schema(description = "HTTP status code.", example = "404", requiredMode = Schema.RequiredMode.REQUIRED)
+    val status: Int,
+    @field:Schema(description = "Human-readable error description.", example = "Mail not found")
+    val message: String?,
+)

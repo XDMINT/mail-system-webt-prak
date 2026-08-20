@@ -1,5 +1,6 @@
 package de.thm.mni.backend.mail.imap
 
+import de.thm.mni.backend.attachment.AttachmentPolicy
 import de.thm.mni.backend.mail.MailService
 import de.thm.mni.backend.mail.dto.ImportedAttachment
 import jakarta.mail.BodyPart
@@ -18,7 +19,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.web.util.HtmlUtils
-import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Date
@@ -28,6 +28,7 @@ import java.util.UUID
 @Service
 class MailInboxSyncService(
     private val mailService: MailService,
+    private val attachmentPolicy: AttachmentPolicy,
     @Value("\${mail.imap.host:}") private val host: String,
     @Value("\${mail.imap.port:993}") private val port: Int,
     @Value("\${mail.imap.username:}") private val username: String,
@@ -130,7 +131,11 @@ class MailInboxSyncService(
 
     private fun collectContent(part: Part, content: ParsedContent) {
         if (part is BodyPart && isAttachment(part)) {
-            content.attachments.add(parseAttachment(part))
+            val attachment = parseAttachment(part)
+            attachmentPolicy.validateTotalSize(
+                content.attachments.sumOf { it.bytes.size.toLong() } + attachment.bytes.size
+            )
+            content.attachments.add(attachment)
             return
         }
 
@@ -218,17 +223,10 @@ class MailInboxSyncService(
     }
 
     private fun parseAttachment(part: BodyPart): ImportedAttachment {
-        val fileName = part.fileName?.let { MimeUtility.decodeText(it) } ?: "attachment"
-        val contentType = part.contentType.substringBefore(';')
-        val bytes = when (val raw = part.content) {
-            is ByteArray -> raw
-            is String -> raw.toByteArray()
-            else -> {
-                val buffer = ByteArrayOutputStream()
-                part.inputStream.use { input -> input.copyTo(buffer) }
-                buffer.toByteArray()
-            }
-        }
+        if (part.size >= 0) attachmentPolicy.validateFileSize(part.size.toLong())
+        val fileName = attachmentPolicy.normalizeFileName(part.fileName?.let { MimeUtility.decodeText(it) })
+        val contentType = attachmentPolicy.normalizeContentType(part.contentType)
+        val bytes = part.inputStream.use(attachmentPolicy::readLimited)
 
         return ImportedAttachment(
             fileName = fileName,

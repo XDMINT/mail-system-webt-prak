@@ -5,6 +5,10 @@ import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
+import io.swagger.v3.oas.models.media.Content
+import io.swagger.v3.oas.models.media.MediaType
+import io.swagger.v3.oas.models.media.Schema
+import org.springdoc.core.customizers.OpenApiCustomizer
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -19,7 +23,10 @@ class OpenApiConfig(
         .info(
             Info()
                 .title("THM Mail Support API")
-                .description("REST API for the THM mail support application")
+                .description(
+                    "REST API for the shared THM mail support application. " +
+                        "Application operations require a Keycloak access token."
+                )
                 .version("1.0.0")
         )
         .components(
@@ -32,7 +39,24 @@ class OpenApiConfig(
         )
         .addSecurityItem(SecurityRequirement().addList(OIDC_SECURITY_SCHEME))
 
-    private companion object {
+    @Bean
+    fun errorResponseContentCustomizer(): OpenApiCustomizer = OpenApiCustomizer { openApi ->
+        openApi.paths.orEmpty().values.forEach { pathItem ->
+            pathItem.readOperations().forEach { operation ->
+                operation.responses.orEmpty()
+                    .filterKeys { code -> code.toIntOrNull()?.let { it >= 400 } == true }
+                    .values
+                    .forEach { response ->
+                        response.content = Content().addMediaType(
+                            org.springframework.http.MediaType.APPLICATION_JSON_VALUE,
+                            MediaType().schema(Schema<Any>().`$ref`("#/components/schemas/AppError")),
+                        )
+                    }
+            }
+        }
+    }
+
+    companion object {
         const val OIDC_SECURITY_SCHEME = "keycloakOidc"
     }
 }

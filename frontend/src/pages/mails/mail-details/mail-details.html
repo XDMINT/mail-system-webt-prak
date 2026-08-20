@@ -147,7 +147,7 @@
               <i class="pi pi-paperclip"></i> Attachments ({{ mail()!.attachments.length }})
             </h4>
             <div class="flex flex-wrap gap-3">
-              @for (attachment of mail()!.attachments; track attachment.fileName) {
+              @for (attachment of mail()!.attachments; track attachment.id) {
                 <div
                   [className]="
                     'flex items-center gap-3 p-4 bg-gray-100 border border-gray-300 rounded-md'
@@ -158,12 +158,21 @@
                     <span class="text-xs text-gray-400"
                       >{{ (attachment.size / 1024).toFixed(1) }} KB</span
                     >
-                    <p-image
-                      [src]="attachment.url"
-                      [preview]="true"
-                      loading="lazy"
-                      alt="Image preview"
-                      [className]="'w-20 h-20 object-cover rounded-md mt-1 cursor-pointer'"
+                    @if (attachment.previewUrl) {
+                      <p-image
+                        [src]="attachment.previewUrl"
+                        [preview]="true"
+                        loading="lazy"
+                        [alt]="'Preview of ' + attachment.fileName"
+                        [className]="'w-20 h-20 object-cover rounded-md mt-1 cursor-pointer'"
+                      />
+                    }
+                    <p-button
+                      (click)="downloadAttachment(attachment)"
+                      severity="secondary"
+                      icon="pi pi-download"
+                      label="Download"
+                      size="small"
                     />
                   </div>
                 </div>

@@ -1,7 +1,6 @@
 package de.thm.mni.backend.mail
 
 import de.thm.mni.backend.attachment.Attachment
-import de.thm.mni.backend.attachment.dto.AttachmentDTO
 import de.thm.mni.backend.error.ResourceCannotBeModifiedException
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail.dto.MailCreate
@@ -14,6 +13,7 @@ import de.thm.mni.backend.mail_record.MailRecordService
 import de.thm.mni.backend.mail_record.dto.CreateMailRecord
 import de.thm.mni.backend.smtp.OutboundMailGateway
 import de.thm.mni.backend.storage.FileStorageService
+import de.thm.mni.backend.storage.StoredAttachment
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.UserService
 import jakarta.transaction.Transactional
@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
+import org.slf4j.LoggerFactory
 import java.util.UUID
 
 
@@ -32,6 +33,8 @@ class MailService(
     private val fileStorageService: FileStorageService,
     private val mailRecordService: MailRecordService,
 ){
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     fun getMailById(id: UUID): Mail? {
         return mailRepository.findById(id).orElse(null)
     }
@@ -179,12 +182,19 @@ class MailService(
         val existingMail = this.getMailById(id)!!
         validateRecipientRoles(mail.toIds, mail.ccIds, mail.bccIds)
 
+        val existingAttachmentsById = existingMail.attachments.associateBy { requireNotNull(it.id) }
+        if (!existingAttachmentsById.keys.containsAll(mail.retainedAttachmentIds)) {
+            throw ResourceCannotBeModifiedException("A retained attachment does not belong to this mail")
+        }
+
         existingMail.subject = mail.subject
         existingMail.content = mail.content
 
-        val replacedAttachmentPaths = existingMail.attachments.map { file -> file.path }
+        val removedAttachments = existingMail.attachments
+            .filter { requireNotNull(it.id) !in mail.retainedAttachmentIds }
+        val removedAttachmentPaths = removedAttachments.map { it.path }
         val storedAttachments = storeUploadedFiles(attachments)
-        existingMail.attachments.clear()
+        removedAttachments.forEach(existingMail::removeAttachment)
         this.connectAttachmentsToMail(existingMail, storedAttachments)
 
         val updatedMail = mailRepository.save(existingMail)
@@ -194,12 +204,12 @@ class MailService(
             mailRecordService.deleteMailRecord(record.id!!)
         }
         this.createMailRecordsFromIds(updatedMail, mail.toIds, mail.ccIds, mail.bccIds)
-        deleteFilesAfterCommit(replacedAttachmentPaths)
+        deleteFilesAfterCommit(removedAttachmentPaths)
 
         return updatedMail
     }
 
-    private fun connectAttachmentsToMail(mail: Mail, attachments:  MutableList<AttachmentDTO>) {
+    private fun connectAttachmentsToMail(mail: Mail, attachments: MutableList<StoredAttachment>) {
         attachments.forEach { att ->
             val attachment = Attachment()
             attachment.fileName = att.fileName
@@ -240,8 +250,8 @@ class MailService(
         return "TICKET-${UUID.randomUUID().toString().take(8).uppercase()}"
     }
 
-    private fun storeUploadedFiles(files: List<MultipartFile>): MutableList<AttachmentDTO> {
-        val storedFiles = mutableListOf<AttachmentDTO>()
+    private fun storeUploadedFiles(files: List<MultipartFile>): MutableList<StoredAttachment> {
+        val storedFiles = mutableListOf<StoredAttachment>()
         files.forEach { file ->
             fileStorageService.saveFile(file)?.let { storedFile ->
                 storedFiles.add(storedFile)
@@ -251,8 +261,8 @@ class MailService(
         return storedFiles
     }
 
-    private fun storeImportedFiles(files: List<ImportedAttachment>): MutableList<AttachmentDTO> {
-        val storedFiles = mutableListOf<AttachmentDTO>()
+    private fun storeImportedFiles(files: List<ImportedAttachment>): MutableList<StoredAttachment> {
+        val storedFiles = mutableListOf<StoredAttachment>()
         files.forEach { file ->
             val storedFile = fileStorageService.saveFile(file.fileName, file.contentType, file.bytes)
             storedFiles.add(storedFile)
@@ -288,6 +298,7 @@ class MailService(
 
     private fun deleteFileQuietly(path: String) {
         runCatching { fileStorageService.deleteFile(path) }
+            .onFailure { error -> logger.warn("Failed to delete attachment object {}", path, error) }
     }
 
     private fun validateRecipientRoles(toIds: List<UUID>, ccIds: List<UUID>, bccIds: List<UUID>) {

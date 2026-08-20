@@ -52,4 +52,6 @@ export type CreateMail = {
   bccIds: string[];
 };
 
-export type UpdateMail = CreateMail;
+export type UpdateMail = CreateMail & {
+  retainedAttachmentIds: string[];
+};

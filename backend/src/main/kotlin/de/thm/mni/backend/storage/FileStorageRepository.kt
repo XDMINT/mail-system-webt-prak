@@ -1,11 +1,9 @@
 package de.thm.mni.backend.storage
 
-import de.thm.mni.backend.attachment.dto.AttachmentDTO
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Repository
-import org.springframework.web.multipart.MultipartFile
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.core.ResponseBytes
@@ -49,39 +47,24 @@ class FileStorageRepository(
     @Volatile
     private var bucketReady = false
 
-    fun saveFile(file: MultipartFile): AttachmentDTO? {
-        if (file.isEmpty) {
-            return null
-        }
-
-        return saveFile(file.originalFilename ?: "attachment", file.contentType, file.bytes)
-    }
-
-    fun saveFile(fileName: String, contentType: String?, content: ByteArray): AttachmentDTO {
+    fun saveFile(fileName: String, contentType: String?, content: ByteArray): StoredAttachment {
         ensureBucket()
 
-        val safeName = fileName.ifBlank { "attachment" }
-        val extension = safeName.substringAfterLast('.', "")
-        val objectKey = if (extension.isBlank()) {
-            "attachments/${UUID.randomUUID()}"
-        } else {
-            "attachments/${UUID.randomUUID()}.$extension"
-        }
+        val objectKey = "attachments/${UUID.randomUUID()}"
 
         val request = PutObjectRequest.builder()
             .bucket(bucket)
             .key(objectKey)
             .contentLength(content.size.toLong())
             .contentType(contentType ?: "application/octet-stream")
-            .metadata(mapOf("file-name" to safeName))
+            .metadata(mapOf("file-name" to fileName))
             .build()
 
         s3Client.putObject(request, RequestBody.fromBytes(content))
 
-        return AttachmentDTO(
-            id = null,
+        return StoredAttachment(
             size = content.size.toLong(),
-            fileName = safeName,
+            fileName = fileName,
             mimeType = contentType,
             path = objectKey
         )

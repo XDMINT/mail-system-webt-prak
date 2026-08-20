@@ -103,7 +103,7 @@ The Angular production build currently reports its pre-existing initial-bundle b
 
 ## OpenAPI
 
-The backend generates its OpenAPI description from the running code. It includes the Keycloak OpenID Connect discovery URL as its authentication scheme.
+The backend generates its OpenAPI 3.1 description from the running code and annotations. Every operation has a stable operation ID, a summary, a description, success and error responses, and a functional tag. Request/response DTOs, required properties and the common JSON error body are described as schemas. The global authentication requirement uses the Keycloak OpenID Connect discovery URL.
 
 - Swagger UI: <http://localhost/swagger-ui/index.html>
 - JSON: <http://localhost/v3/api-docs>
@@ -116,6 +116,8 @@ The OpenAPI endpoints are public; application API endpoints under `/api/**` requ
 The seeded external support request can be opened and answered by every registered Keycloak user. Creating a reply draft assigns or reuses a random `TICKET-XXXXXXXX` number, prefixes the reply subject and automatically addresses the external sender. The logged-in user remains the internal author; SMTP always uses the shared THM address configured as `MAIL_FROM_ADDRESS` for the visible `From` header.
 
 The IMAP poller searches only messages without the `SEEN` flag. It stores the message and its attachments in PostgreSQL and SeaweedFS and marks the source message as `SEEN` only after the complete import succeeds. The external `Message-ID` provides an additional deduplication guard. Failed imports remain unseen and are retried.
+
+HTTP uploads and IMAP attachments share configurable file and total-size limits. File names and media types are normalized before storage, internal S3 object keys are not exposed through the REST DTO, and authorized downloads use `Content-Disposition: attachment` with `nosniff`. JPEG, PNG, GIF and WebP files can additionally be requested through the authenticated inline-preview mode; active formats such as HTML and SVG remain downloads.
 
 SMTP and IMAP are optional for the local demo and are disabled when their hosts or credentials are empty. Configure real THM credentials only in the local `.env`; all supported values are listed in `.env.example`.
 

@@ -16,16 +16,16 @@ class User {
     @GeneratedValue(strategy = GenerationType.UUID)
     var id : UUID? = null
 
-    @Column(name = "first_name", nullable = false)
+    @Column(name = "first_name", nullable = false, length = NAME_MAX_LENGTH)
     var firstName: String = ""
 
-    @Column(name = "last_name", nullable = false)
+    @Column(name = "last_name", nullable = false, length = NAME_MAX_LENGTH)
     var lastName: String = ""
 
-    @Column(name = "email", nullable = false, unique = true)
+    @Column(name = "email", nullable = false, unique = true, length = EMAIL_MAX_LENGTH)
     var email: String = ""
 
-    @Column(name = "identity_provider_subject", unique = true)
+    @Column(name = "identity_provider_subject", unique = true, length = IDENTITY_SUBJECT_MAX_LENGTH)
     var identityProviderSubject: String? = null
 
     @Column(name = "external_contact", nullable = false)
@@ -46,5 +46,9 @@ class User {
         this.identityProviderSubject = identityProviderSubject
     }
 
-
+    companion object {
+        const val NAME_MAX_LENGTH = 255
+        const val EMAIL_MAX_LENGTH = 255
+        const val IDENTITY_SUBJECT_MAX_LENGTH = 255
+    }
 }

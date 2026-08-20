@@ -36,6 +36,10 @@ Schlägt die Verarbeitung fehl, bleibt die Nachricht ungelesen und wird beim nä
 
 Neu gespeicherte S3-Objekte werden bei einem Rollback der zugehörigen Datenbanktransaktion kompensierend gelöscht. Beim Ersetzen oder Löschen einer Mail werden nicht mehr benötigte Objekte erst nach erfolgreichem Datenbank-Commit entfernt. Eine perfekte verteilte Transaktion zwischen PostgreSQL und S3 wird bewusst nicht eingeführt.
 
+HTTP-Uploads und IMAP-Importe verwenden dieselbe zentrale Attachment-Policy. Standardmäßig sind 1 MiB pro Datei und 10 MiB insgesamt erlaubt. Zu große HTTP-Uploads liefern HTTP 413; eine IMAP-Mail mit zu großen Anhängen bleibt `UNSEEN`. Dateinamen und MIME-Metadaten werden normalisiert, bevor der Inhalt unter einem zufälligen, nicht öffentlich ausgegebenen SeaweedFS-Key gespeichert wird.
+
+Downloads sind nur nach der Mail-Autorisierungsprüfung möglich. Sie werden standardmäßig als `application/octet-stream` mit `Content-Disposition: attachment` und `X-Content-Type-Options: nosniff` ausgeliefert. Eine authentifizierte Inline-Vorschau ist ausschließlich für JPEG, PNG, GIF und WebP vorgesehen. HTML, SVG und unbekannte Typen bleiben Downloads.
+
 ## Konfiguration
 
 ```env
@@ -51,6 +55,9 @@ MAIL_IMAP_USERNAME=your-account@thm.de
 MAIL_IMAP_PASSWORD=your-password
 MAIL_IMAP_FOLDER=INBOX
 MAIL_IMAP_POLL_INTERVAL_MS=300000
+
+ATTACHMENT_MAX_FILE_SIZE=1MB
+ATTACHMENT_MAX_REQUEST_SIZE=10MB
 ```
 
 Echte Zugangsdaten gehören ausschließlich in die nicht getrackte `.env`.

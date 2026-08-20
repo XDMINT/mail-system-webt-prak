@@ -6,15 +6,14 @@ import jakarta.validation.constraints.Size
 import java.util.UUID
 import io.swagger.v3.oas.annotations.media.Schema
 
-
 @AtLeastOneRecipient
-@Schema(description = "Mail content and recipients used to create a draft or send a new mail.")
-data class MailRequest(
-    @field:Schema(description = "Mail subject.", example = "Question about registration", requiredMode = Schema.RequiredMode.REQUIRED)
+@Schema(description = "Mail data used to update a draft while retaining selected stored attachments.")
+data class MailUpdateRequest(
+    @field:Schema(description = "Mail subject.", example = "[TICKET-1A2B3C4D] Re: Registration", requiredMode = Schema.RequiredMode.REQUIRED)
     @field:NotBlank(message = "Subject must not be blank")
     @field:Size(min = 1, max = 255, message = "Subject must be between 1 and 255 characters")
     override val subject: String,
-    @field:Schema(description = "Plain-text mail body.", example = "How can we help you?", requiredMode = Schema.RequiredMode.REQUIRED)
+    @field:Schema(description = "Plain-text mail body.", example = "Thank you for contacting us.", requiredMode = Schema.RequiredMode.REQUIRED)
     @field:NotBlank(message = "Content must not be blank")
     @field:Size(min = 1, max = 500, message = "Content must be between 1 and 500 characters")
     override val content: String,
@@ -24,15 +23,15 @@ data class MailRequest(
     override val ccIds: MutableList<UUID>,
     @field:Schema(description = "Identifiers of blind-carbon-copy recipients.", requiredMode = Schema.RequiredMode.REQUIRED)
     override val bccIds: MutableList<UUID>,
+    @field:Schema(description = "Existing attachment identifiers that must remain associated with the draft.")
+    val retainedAttachmentIds: List<UUID> = emptyList(),
 ) : RecipientMailRequest
 
-
-fun MailRequest.toMailCreate(): MailCreate {
-    return MailCreate(
-        subject = this.subject,
-        content = this.content,
-        toIds = this.toIds,
-        ccIds = this.ccIds,
-        bccIds = this.bccIds,
-    )
-}
+fun MailUpdateRequest.toMailUpdate() = MailUpdate(
+    subject = subject,
+    content = content,
+    toIds = toIds,
+    ccIds = ccIds,
+    bccIds = bccIds,
+    retainedAttachmentIds = retainedAttachmentIds,
+)

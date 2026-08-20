@@ -30,21 +30,6 @@ export class MailEdit implements OnInit{
     this.isLoading.set(true);
     this.mailsService.getMailById(id).subscribe({
       next: (mail) => {
-        mail.attachments.forEach(attachment=>{
-          this.mailsService.fetchAttachment(attachment.id).subscribe({
-            next: (blob) => {
-              attachment.url = URL.createObjectURL(blob);
-              attachment.blob = blob;
-            },
-            error: (err) => {
-              this.messageService.add({
-                severity: 'error',
-                summary: 'Failed to Load Attachment',
-                detail: err.error?.message || 'An error occurred',
-              });
-            },
-          });
-        })
         this.mail.set(mail);
         this.isLoading.set(false);
       },

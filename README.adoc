@@ -121,6 +121,7 @@ The complete list with safe local defaults is maintained in `.env.example`.
 * `KEYCLOAK_*`, `OIDC_*`: development administrator, public URL, issuer, JWK set and discovery URL
 * `APP_CORS_ALLOWED_ORIGINS`: explicit local browser origins
 * `STORAGE_S3_*`: SeaweedFS endpoint, bucket, region and credentials
+* `ATTACHMENT_MAX_FILE_SIZE`, `ATTACHMENT_MAX_REQUEST_SIZE`: shared HTTP/IMAP attachment limits
 * `SPRING_MAIL_*`, `MAIL_FROM_ADDRESS`: SMTP settings
 * `MAIL_IMAP_*`: IMAP settings and polling behavior
 
@@ -134,9 +135,11 @@ The authenticated user is stored as the internal author of the reply. The SMTP `
 
 The IMAP poller searches only messages without the `SEEN` flag. It marks a message as seen only after its database data and SeaweedFS attachments have been stored successfully. Failed imports remain unseen for the next poll, while the external `Message-ID` provides an additional deduplication guard.
 
+Attachment validation is shared by HTTP uploads and IMAP imports. Normalized file names and MIME metadata are stored, while the internal SeaweedFS object key remains server-side. Authorized downloads are forced through `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`. The authenticated preview mode is restricted to JPEG, PNG, GIF and WebP; HTML, SVG and unknown formats are never served inline. Existing draft attachments are retained by identifier instead of being downloaded and uploaded again during an edit.
+
 == OpenAPI
 
-The backend generates the current API description at startup. Its global security declaration references the Keycloak OpenID Connect discovery endpoint.
+The backend generates the current OpenAPI 3.1 description from code and annotations at startup. Its global security declaration references the Keycloak OpenID Connect discovery endpoint. All operations have stable operation IDs, functional tags, summaries, descriptions, success/error responses and documented payload schemas including required properties. Error responses consistently reference the documented `AppError` body.
 
 * Swagger UI: http://localhost/swagger-ui/index.html
 * JSON: http://localhost/v3/api-docs

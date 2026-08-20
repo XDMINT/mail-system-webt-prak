@@ -14,6 +14,19 @@
 - [x] Fehlgeschlagener SMTP-Versand persistiert `ERROR`.
 - [x] Erfolgreich importierte IMAP-Nachrichten werden als `SEEN` markiert.
 - [x] Fehlgeschlagene Importe bleiben ungelesen.
+- [x] Zu große IMAP-Anhänge werden begrenzt gelesen und lassen die Quellmail ungelesen.
+- [x] HTTP-Uploads und IMAP-Importe verwenden dieselben konfigurierbaren Größenlimits.
+- [x] Dateinamen und MIME-Metadaten werden vor der Speicherung normalisiert.
+- [x] Interne SeaweedFS-Objektschlüssel werden nicht über `AttachmentDTO` ausgegeben.
+- [x] HTML, SVG und unbekannte Formate werden mit `attachment`, `nosniff` und `application/octet-stream` ausgeliefert.
+- [x] Nur JPEG, PNG, GIF und WebP dürfen den authentifizierten Inline-Vorschaumodus verwenden.
+- [x] Attachment-Zugriff wird serverseitig über die zugehörige Mail autorisiert.
+- [x] Bestehende Entwurfsanhänge werden beim Bearbeiten per ID beibehalten und nicht erneut hochgeladen.
+- [x] Repository-, Autorisierungs- und Storage-Logik des Attachment-Abrufs liegt in einem Service; der Controller bildet nur HTTP ab.
+- [x] Alle REST-Operationen besitzen OpenAPI-Operation-ID, Tag, Summary, Description und Fehlerantworten.
+- [x] Nicht-optionale Request-Eigenschaften sind in der generierten OpenAPI-Spezifikation als erforderlich markiert.
+- [x] Alle verwendeten API-DTOs und das einheitliche Fehlerformat sind in OpenAPI beschrieben.
+- [x] Die generierte Spezifikation enthält die globale Keycloak-OIDC-Anforderung.
 - [x] Frontend- und Backendtests sowie Produktionsbuild laufen über Gradle.
 
 ## Manueller Demoablauf ohne THM-Zugangsdaten

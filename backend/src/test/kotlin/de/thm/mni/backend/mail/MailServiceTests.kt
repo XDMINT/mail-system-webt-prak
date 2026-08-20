@@ -1,7 +1,8 @@
 package de.thm.mni.backend.mail
 
-import de.thm.mni.backend.attachment.dto.AttachmentDTO
 import de.thm.mni.backend.mail.dto.ImportedAttachment
+import de.thm.mni.backend.mail.dto.MailCreate
+import de.thm.mni.backend.mail.dto.MailUpdate
 import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailType
@@ -10,6 +11,7 @@ import de.thm.mni.backend.smtp.OutboundMailGateway
 import de.thm.mni.backend.user.UserService
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.storage.FileStorageService
+import de.thm.mni.backend.storage.StoredAttachment
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -21,6 +23,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.context.transaction.TestTransaction
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.data.domain.PageRequest
+import org.springframework.mock.web.MockMultipartFile
+import org.junit.jupiter.api.Assertions.assertThrows
+import de.thm.mni.backend.error.ResourceCannotBeModifiedException
 
 @SpringBootTest
 @Transactional
@@ -159,8 +164,7 @@ class MailServiceTests @Autowired constructor(
     @Test
     fun `stored IMAP attachments are deleted when the database transaction rolls back`() {
         val content = byteArrayOf(1, 2, 3, 4)
-        val storedAttachment = AttachmentDTO(
-            id = null,
+        val storedAttachment = StoredAttachment(
             size = 4,
             fileName = "test.txt",
             mimeType = "text/plain",
@@ -182,5 +186,63 @@ class MailServiceTests @Autowired constructor(
         TestTransaction.end()
 
         Mockito.verify(fileStorageService).deleteFile("attachments/test.txt")
+    }
+
+    @Test
+    fun `updating a draft retains selected attachments without downloading or uploading them again`() {
+        val sender = userService.getUserByEmail("aallanson@example.com")!!
+        val receiver = userService.getUserByEmail("svardey1@example.com")!!
+        val file = MockMultipartFile("attachments", "note.txt", "text/plain", "hello".toByteArray())
+        Mockito.`when`(fileStorageService.saveFile(file)).thenReturn(
+            StoredAttachment(5, "note.txt", "text/plain", "attachments/note")
+        )
+        val draft = mailService.createMail(
+            MailCreate("Subject", "Content", mutableListOf(receiver.id!!), mutableListOf(), mutableListOf()),
+            sender,
+            listOf(file),
+        )
+        val attachmentId = draft.attachments.single().id!!
+
+        val updated = mailService.updateMail(
+            draft.id!!,
+            MailUpdate(
+                "Updated",
+                "Updated content",
+                mutableListOf(receiver.id!!),
+                mutableListOf(),
+                mutableListOf(),
+                listOf(attachmentId),
+            ),
+            emptyList(),
+        )
+
+        assertEquals(listOf(attachmentId), updated.attachments.map { it.id })
+        Mockito.verify(fileStorageService, Mockito.times(1)).saveFile(file)
+    }
+
+    @Test
+    fun `updating a draft rejects attachment identifiers from another mail`() {
+        val sender = userService.getUserByEmail("aallanson@example.com")!!
+        val receiver = userService.getUserByEmail("svardey1@example.com")!!
+        val draft = mailService.createMail(
+            MailCreate("Subject", "Content", mutableListOf(receiver.id!!), mutableListOf(), mutableListOf()),
+            sender,
+            emptyList(),
+        )
+
+        assertThrows(ResourceCannotBeModifiedException::class.java) {
+            mailService.updateMail(
+                draft.id!!,
+                MailUpdate(
+                    "Updated",
+                    "Updated content",
+                    mutableListOf(receiver.id!!),
+                    mutableListOf(),
+                    mutableListOf(),
+                    listOf(java.util.UUID.randomUUID()),
+                ),
+                emptyList(),
+            )
+        }
     }
 }
