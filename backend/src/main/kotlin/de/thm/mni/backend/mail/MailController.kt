@@ -2,6 +2,7 @@ package de.thm.mni.backend.mail
 
 import de.thm.mni.backend.common.dto.PageResponse
 import de.thm.mni.backend.error.ResourceCannotBeModifiedException
+import de.thm.mni.backend.error.MailDeliveryException
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail.dto.MailRequest
 import de.thm.mni.backend.mail.dto.MailDTO
@@ -9,9 +10,12 @@ import de.thm.mni.backend.mail.dto.MailListItemDTO
 import de.thm.mni.backend.mail.dto.toMailCreate
 import de.thm.mni.backend.mail.dto.toMailUpdate
 import de.thm.mni.backend.mail.enums.MailStatus
+import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail_record.MailRecordService
 import de.thm.mni.backend.user.CurrentUserService
 import jakarta.validation.Valid
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -86,10 +90,31 @@ class MailController(private val mailService: MailService,
         val records = mailRecordService.getMailRecordByMailId(mail.id!!)
 
         // Check if the user is either the sender or a recipient of the mail
-        if (records.none { it.user!!.id == user.id } && mail.sender!!.id != user.id) {
+        if (mail.source != MailSource.EXTERN && records.none { it.user!!.id == user.id } && mail.sender!!.id != user.id) {
             throw ResourceNotFoundException("Mail not found")
         }
         return mailMapper.toDTO(user, mail)
+    }
+
+    @Operation(
+        operationId = "createMailReplyDraft",
+        summary = "Create a reply draft for an incoming support mail",
+        description = "Creates a draft addressed to the external sender and assigns or reuses the mail's ticket number.",
+    )
+    @ApiResponse(responseCode = "201", description = "Reply draft created")
+    @ApiResponse(responseCode = "400", description = "The mail is not an incoming external mail")
+    @ApiResponse(responseCode = "404", description = "The mail is unavailable to the current user")
+    @PostMapping("/{mailId}/reply")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createReplyDraft(
+        @PathVariable mailId: UUID,
+        @AuthenticationPrincipal jwt: Jwt,
+    ): MailDTO {
+        val user = currentUserService.getOrProvision(jwt)
+        val incomingMail = mailService.getMailById(mailId) ?: throw ResourceNotFoundException("Mail not found")
+        ensureMailAccess(incomingMail, user.id!!)
+        val replyDraft = mailService.createReplyDraft(incomingMail, user)
+        return mailMapper.toDTO(user, replyDraft)
     }
 
     @PutMapping("/{mailId}", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
@@ -126,13 +151,16 @@ class MailController(private val mailService: MailService,
     }
 
     @PostMapping("/send/{mailId}")
-    fun sendMail(@PathVariable mailId: UUID, @AuthenticationPrincipal jwt: Jwt) {
-        val userId = currentUserService.getOrProvision(jwt).id!!
+    fun sendMail(@PathVariable mailId: UUID, @AuthenticationPrincipal jwt: Jwt): MailDTO {
+        val user = currentUserService.getOrProvision(jwt)
+        val userId = user.id!!
         val existingMail = mailService.getMailById(mailId) ?: throw ResourceNotFoundException("Mail not found")
         if (existingMail.sender!!.id != userId) {
             throw ResourceNotFoundException("Mail not found")
         }
-        mailService.sendMail(existingMail)
+        val sentMail = mailService.sendMail(existingMail)
+        ensureDeliverySucceeded(sentMail)
+        return mailMapper.toDTO(user, sentMail)
     }
 
     @PostMapping("/send")
@@ -142,7 +170,21 @@ class MailController(private val mailService: MailService,
         val user = currentUserService.getOrProvision(jwt)
 
         val createdMail = mailService.createAndSendMail(data.toMailCreate(), user, attachments)
+        ensureDeliverySucceeded(createdMail)
         return mailMapper.toDTO(user, createdMail)
+    }
+
+    private fun ensureMailAccess(mail: Mail, userId: UUID) {
+        val records = mailRecordService.getMailRecordByMailId(mail.id!!)
+        if (mail.source != MailSource.EXTERN && records.none { it.user?.id == userId } && mail.sender?.id != userId) {
+            throw ResourceNotFoundException("Mail not found")
+        }
+    }
+
+    private fun ensureDeliverySucceeded(mail: Mail) {
+        if (mail.status == MailStatus.ERROR) {
+            throw MailDeliveryException("The mail could not be delivered by the configured SMTP server")
+        }
     }
 
 }

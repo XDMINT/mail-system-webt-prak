@@ -8,5 +8,4 @@ data class MailCreate(
     val toIds: MutableList<UUID>,
     val ccIds: MutableList<UUID>,
     val bccIds: MutableList<UUID>,
-    val replyToIds: MutableList<UUID>
 )

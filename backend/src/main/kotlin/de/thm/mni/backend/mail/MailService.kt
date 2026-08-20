@@ -2,6 +2,7 @@ package de.thm.mni.backend.mail
 
 import de.thm.mni.backend.attachment.Attachment
 import de.thm.mni.backend.attachment.dto.AttachmentDTO
+import de.thm.mni.backend.error.ResourceCannotBeModifiedException
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail.dto.MailCreate
 import de.thm.mni.backend.mail.dto.ImportedAttachment
@@ -11,12 +12,14 @@ import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail.enums.MailType
 import de.thm.mni.backend.mail_record.MailRecordService
 import de.thm.mni.backend.mail_record.dto.CreateMailRecord
-import de.thm.mni.backend.smtp.SMTPService
+import de.thm.mni.backend.smtp.OutboundMailGateway
 import de.thm.mni.backend.storage.FileStorageService
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.UserService
 import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
 
@@ -25,7 +28,7 @@ import java.util.UUID
 class MailService(
     private val mailRepository: MailRepository,
     private val userService: UserService,
-    private val smtpService: SMTPService,
+    private val outboundMailGateway: OutboundMailGateway,
     private val fileStorageService: FileStorageService,
     private val mailRecordService: MailRecordService,
 ){
@@ -38,7 +41,7 @@ class MailService(
     }
 
     fun getAllCreatedUserMails(user: User): List<Mail> {
-        return mailRepository.findAllBySender(user).toList().filter { mail -> mail.status == MailStatus.DRAFT }
+        return mailRepository.findAllBySender(user).toList().filter { mail -> mail.status != MailStatus.SENT }
     }
     fun getAllSentUserMails(user: User): List<Mail> {
         return mailRepository.findAllBySender(user).toList().filter { mail -> mail.status == MailStatus.SENT }
@@ -46,7 +49,7 @@ class MailService(
 
     @Transactional
     fun deleteMail(mail: Mail) {
-        mail.attachments.map { file -> fileStorageService.deleteFile(file.path) }
+        deleteFilesAfterCommit(mail.attachments.map { file -> file.path })
         val records = mailRecordService.getMailRecordByMailId(mail.id!!)
         records.forEach { record -> mailRecordService.deleteMailRecord(record.id!!) }
         mailRepository.delete(mail)
@@ -54,8 +57,11 @@ class MailService(
 
     @Transactional
     fun sendMail(mail: Mail): Mail {
-        applyTrackingCodeIfNeeded(mail)
-        val success = smtpService.sendEmail(mail)
+        if (mail.status !in setOf(MailStatus.DRAFT, MailStatus.ERROR)) {
+            throw ResourceCannotBeModifiedException("Only draft or failed mails can be sent")
+        }
+
+        val success = outboundMailGateway.send(mail)
         if(success) {
             mail.status = MailStatus.SENT
         }else{
@@ -66,7 +72,8 @@ class MailService(
 
     @Transactional
     fun createMail(mail: MailCreate, sender: User,  attachments: List<MultipartFile>): Mail {
-        val storedAttachments = attachments.mapNotNull { file -> fileStorageService.saveFile(file) }.toMutableList()
+        validateRecipientRoles(mail.toIds, mail.ccIds, mail.bccIds)
+        val storedAttachments = storeUploadedFiles(attachments)
 
         val mailEntity = Mail(
             sender = sender,
@@ -78,7 +85,7 @@ class MailService(
         this.connectAttachmentsToMail(mailEntity, storedAttachments)
         val createdMail = mailRepository.save(mailEntity)
 
-        this.createMailRecordsFromIds(createdMail, mail.toIds, mail.ccIds, mail.bccIds, mail.replyToIds)
+        this.createMailRecordsFromIds(createdMail, mail.toIds, mail.ccIds, mail.bccIds)
         return createdMail
     }
 
@@ -105,11 +112,9 @@ class MailService(
         mailEntity.externalSenderEmail = senderEmail
         mailEntity.externalMessageId = externalMessageId
         mailEntity.sentAt = receivedAt
-        applyTrackingCodeToImportedMail(mailEntity)
+        mailEntity.trackingCode = extractTrackingCode(subject)
 
-        val storedAttachments = attachments.mapNotNull { file ->
-            fileStorageService.saveFile(file.fileName, file.contentType, file.bytes)
-        }.toMutableList()
+        val storedAttachments = storeImportedFiles(attachments)
 
         connectAttachmentsToMail(mailEntity, storedAttachments)
         val createdMail = mailRepository.save(mailEntity)
@@ -127,6 +132,42 @@ class MailService(
     }
 
     @Transactional
+    fun createReplyDraft(incomingMail: Mail, sender: User): Mail {
+        if (incomingMail.source != MailSource.EXTERN) {
+            throw ResourceCannotBeModifiedException("Only incoming external mails can be answered")
+        }
+
+        val recipient = incomingMail.sender
+            ?: incomingMail.externalSenderEmail?.let(::ensureExternalSenderUser)
+            ?: throw ResourceCannotBeModifiedException("Incoming mail has no external sender")
+
+        val trackingCode = incomingMail.trackingCode
+            ?: extractTrackingCode(incomingMail.subject)
+            ?: generateTrackingCode()
+        incomingMail.trackingCode = trackingCode
+        mailRepository.save(incomingMail)
+
+        val reply = Mail(
+            sender = sender,
+            subject = createReplySubject(incomingMail.subject, trackingCode),
+            content = "",
+            attachments = mutableListOf(),
+        )
+        reply.trackingCode = trackingCode
+        reply.inReplyToMail = incomingMail
+
+        val createdReply = mailRepository.save(reply)
+        mailRecordService.createMailRecord(
+            CreateMailRecord(
+                mail = createdReply,
+                receiver = recipient,
+                mailType = MailType.TO,
+            )
+        )
+        return createdReply
+    }
+
+    @Transactional
     fun createAndSendMail(mail: MailCreate, sender: User, attachments: List<MultipartFile>): Mail {
         val createdMail = this.createMail(mail, sender, attachments)
         return this.sendMail(createdMail)
@@ -136,14 +177,14 @@ class MailService(
     @Transactional
     fun updateMail(id: UUID, mail: MailUpdate, attachments: List<MultipartFile>): Mail {
         val existingMail = this.getMailById(id)!!
+        validateRecipientRoles(mail.toIds, mail.ccIds, mail.bccIds)
 
         existingMail.subject = mail.subject
         existingMail.content = mail.content
 
-        existingMail.attachments.map { file -> fileStorageService.deleteFile(file.path) }
+        val replacedAttachmentPaths = existingMail.attachments.map { file -> file.path }
+        val storedAttachments = storeUploadedFiles(attachments)
         existingMail.attachments.clear()
-
-        val storedAttachments = attachments.mapNotNull { file -> fileStorageService.saveFile(file) }.toMutableList()
         this.connectAttachmentsToMail(existingMail, storedAttachments)
 
         val updatedMail = mailRepository.save(existingMail)
@@ -152,7 +193,8 @@ class MailService(
         records.forEach { record ->
             mailRecordService.deleteMailRecord(record.id!!)
         }
-        this.createMailRecordsFromIds(updatedMail, mail.toIds, mail.ccIds, mail.bccIds, mail.replyToIds)
+        this.createMailRecordsFromIds(updatedMail, mail.toIds, mail.ccIds, mail.bccIds)
+        deleteFilesAfterCommit(replacedAttachmentPaths)
 
         return updatedMail
     }
@@ -179,36 +221,15 @@ class MailService(
         )
     }
 
-    private fun applyTrackingCodeToImportedMail(mail: Mail) {
-        val trackingCode = extractTrackingCode(mail.subject) ?: generateTrackingCode()
-        mail.trackingCode = trackingCode
-
-        if (!hasTrackingPrefix(mail.subject)) {
-            mail.subject = "[$trackingCode] ${mail.subject}"
+    private fun createReplySubject(subject: String, trackingCode: String): String {
+        val subjectWithoutTrackingCode = TRACKING_PREFIX_REGEX.replace(subject, "").trim()
+        val replySubject = if (subjectWithoutTrackingCode.startsWith("Re:", ignoreCase = true)) {
+            subjectWithoutTrackingCode
+        } else {
+            "Re: $subjectWithoutTrackingCode"
         }
-    }
-
-    private fun applyTrackingCodeIfNeeded(mail: Mail) {
-        if (mail.trackingCode == null) {
-            extractTrackingCode(mail.subject)?.let { existing ->
-                mail.trackingCode = existing
-            }
-        }
-
-        val records = mail.id?.let { mailRecordService.getMailRecordByMailId(it) }.orEmpty()
-        val isReply = records.any { it.type == MailType.REPLY_TO }
-        if (!isReply) {
-            return
-        }
-
-        val trackingCode = mail.trackingCode ?: generateTrackingCode().also { mail.trackingCode = it }
-        if (!hasTrackingPrefix(mail.subject)) {
-            mail.subject = "[$trackingCode] ${mail.subject}"
-        }
-    }
-
-    private fun hasTrackingPrefix(subject: String): Boolean {
-        return TRACKING_PREFIX_REGEX.containsMatchIn(subject)
+        val prefix = "[$trackingCode] "
+        return prefix + replySubject.take(MAX_SUBJECT_LENGTH - prefix.length)
     }
 
     private fun extractTrackingCode(subject: String): String? {
@@ -219,16 +240,73 @@ class MailService(
         return "TICKET-${UUID.randomUUID().toString().take(8).uppercase()}"
     }
 
+    private fun storeUploadedFiles(files: List<MultipartFile>): MutableList<AttachmentDTO> {
+        val storedFiles = mutableListOf<AttachmentDTO>()
+        files.forEach { file ->
+            fileStorageService.saveFile(file)?.let { storedFile ->
+                storedFiles.add(storedFile)
+                deleteFileOnRollback(storedFile.path)
+            }
+        }
+        return storedFiles
+    }
+
+    private fun storeImportedFiles(files: List<ImportedAttachment>): MutableList<AttachmentDTO> {
+        val storedFiles = mutableListOf<AttachmentDTO>()
+        files.forEach { file ->
+            val storedFile = fileStorageService.saveFile(file.fileName, file.contentType, file.bytes)
+            storedFiles.add(storedFile)
+            deleteFileOnRollback(storedFile.path)
+        }
+        return storedFiles
+    }
+
+    private fun deleteFileOnRollback(path: String) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return
+        }
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCompletion(status: Int) {
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                    deleteFileQuietly(path)
+                }
+            }
+        })
+    }
+
+    private fun deleteFilesAfterCommit(paths: List<String>) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            paths.forEach(::deleteFileQuietly)
+            return
+        }
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                paths.forEach(::deleteFileQuietly)
+            }
+        })
+    }
+
+    private fun deleteFileQuietly(path: String) {
+        runCatching { fileStorageService.deleteFile(path) }
+    }
+
+    private fun validateRecipientRoles(toIds: List<UUID>, ccIds: List<UUID>, bccIds: List<UUID>) {
+        val recipientIds = toIds + ccIds + bccIds
+        if (recipientIds.size != recipientIds.distinct().size) {
+            throw ResourceCannotBeModifiedException("A recipient can only occur once across To, CC and BCC")
+        }
+    }
+
     private companion object {
         private val TRACKING_PREFIX_REGEX = Regex("^\\[(TICKET-[A-Z0-9]{8})\\]\\s*")
+        private const val MAX_SUBJECT_LENGTH = 255
     }
 
     private fun createMailRecordsFromIds(
         mail: Mail,
         toIds: List<UUID>,
         ccIds: List<UUID>,
-        bccIds: List<UUID>,
-        replyToIds: List<UUID>)
+        bccIds: List<UUID>)
     {
         toIds.forEach { id -> mailRecordService.createMailRecord(CreateMailRecord(
             mail = mail,
@@ -248,11 +326,6 @@ class MailService(
             mailType = MailType.BCC
         ))}
 
-        replyToIds.forEach { id -> mailRecordService.createMailRecord(CreateMailRecord(
-            mail = mail,
-            receiver = userService.getUserById(id) ?: throw ResourceNotFoundException("Receiver not found"),
-            mailType = MailType.REPLY_TO
-        ))}
     }
 
 }

@@ -7,14 +7,13 @@ import java.util.UUID
 
 @AtLeastOneRecipient
 data class MailRequest(
-    @field:Size(min = 1, max = 20, message = "Subject must be between 1 and 20 characters")
+    @field:Size(min = 1, max = 255, message = "Subject must be between 1 and 255 characters")
     val subject: String,
     @field:Size(min = 1, max = 500, message = "Content must be between 1 and 500 characters")
     val content: String,
     val toIds: MutableList<UUID>,
     val ccIds: MutableList<UUID>,
     val bccIds: MutableList<UUID>,
-    val replyToIds: MutableList<UUID>
 )
 
 
@@ -25,7 +24,6 @@ fun MailRequest.toMailCreate(): MailCreate {
         toIds = this.toIds,
         ccIds = this.ccIds,
         bccIds = this.bccIds,
-        replyToIds = this.replyToIds
     )
 }
 
@@ -36,6 +34,5 @@ fun MailRequest.toMailUpdate(): MailUpdate {
         toIds = this.toIds,
         ccIds = this.ccIds,
         bccIds = this.bccIds,
-        replyToIds = this.replyToIds
     )
 }

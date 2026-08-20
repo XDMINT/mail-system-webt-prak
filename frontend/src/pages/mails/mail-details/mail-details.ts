@@ -130,6 +130,22 @@ export class MailDetails {
     }
   }
 
+  replyToMail() {
+    const mail = this.mail();
+    if (!mail) return;
+
+    this.mailsService.createReplyDraft(mail.id).subscribe({
+      next: (replyDraft) => this.router.navigate(['/mails', replyDraft.id, 'edit']),
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Failed to Create Reply',
+          detail: err.error?.message || 'An error occurred',
+        });
+      },
+    });
+  }
+
   deleteMail() {
     const mail = this.mail();
     if (mail) {

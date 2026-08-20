@@ -3,6 +3,7 @@ package de.thm.mni.backend.storage
 import de.thm.mni.backend.attachment.AttachmentRepository
 import de.thm.mni.backend.error.ResourceNotFoundException
 import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.user.CurrentUserService
 import org.springframework.core.io.Resource
 import org.springframework.http.ContentDisposition
@@ -37,7 +38,7 @@ class StorageController(
         val mail = attachment.mail ?: throw ResourceNotFoundException("Attachment not found")
         val userId = currentUserService.getOrProvision(jwt).id!!
         val records = mail.id?.let { mailRecordService.getMailRecordByMailId(it) }.orEmpty()
-        val canAccess = mail.sender?.id == userId || records.any { it.user?.id == userId }
+        val canAccess = mail.source == MailSource.EXTERN || mail.sender?.id == userId || records.any { it.user?.id == userId }
 
         if (!canAccess) {
             throw ResourceNotFoundException("Attachment not found")

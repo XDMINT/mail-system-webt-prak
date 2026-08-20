@@ -12,14 +12,25 @@
         pTooltip="Back"
       />
       <p-divider layout="vertical" />
-      @if(isUserSender()){
+      @if(mail()?.source === 'EXTERN') {
         <p-button
-          (click)="sendMail()"
+          (click)="replyToMail()"
           severity="secondary"
-          icon="pi pi-envelope"
+          icon="pi pi-reply"
           class="p-button-text p-button-rounded p-button-secondary"
-          pTooltip="Send Mail"
+          pTooltip="Reply"
         />
+      }
+      @if(isUserSender()){
+        @if(mail()!.status === 'DRAFT' || mail()!.status === 'ERROR') {
+          <p-button
+            (click)="sendMail()"
+            severity="secondary"
+            icon="pi pi-envelope"
+            class="p-button-text p-button-rounded p-button-secondary"
+            pTooltip="Send Mail"
+          />
+        }
         @if(mail()!.status === 'DRAFT') {
           <p-button
             (click)="editMail()"
@@ -97,12 +108,6 @@
               <p>
                 <span class="font-semibold text-gray-400 uppercase mr-2">Bcc:</span>
                 {{ getEmailString(mail()!.bcc) }}
-              </p>
-            }
-            @if (mail()!.replyTo.length) {
-              <p>
-                <span class="font-semibold text-gray-400 uppercase mr-2">Reply To:</span>
-                {{ getEmailString(mail()!.replyTo) }}
               </p>
             }
           </div>

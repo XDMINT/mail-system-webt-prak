@@ -18,7 +18,7 @@
             />
             @if (mailForm.get('subject')?.invalid && mailForm.get('subject')?.touched) {
               <small class="mt-1 text-sm text-red-600">
-                Subject is required and must be between 1 and 20 characters
+                Subject is required and must be between 1 and 255 characters
               </small>
             }
           </div>
@@ -135,37 +135,6 @@
               }
             </div>
 
-            <div class="flex flex-col gap-2">
-              <label class="text-sm font-semibold text-slate-700">Reply To</label>
-              <div class="flex gap-2">
-                <input
-                  #replyToInput
-                  pInputText
-                  type="text"
-                  class="flex-grow"
-                  placeholder="Type email and press Add"
-                  [(ngModel)]="replyToInputValue"
-                  [ngModelOptions]="{ standalone: true }"
-                />
-                <button pButton type="button" (click)="addReplyToFromInput()" label="Add"></button>
-              </div>
-              @if (selectedReplyToUsers.length > 0) {
-                <div class="flex flex-wrap gap-2 mt-2">
-                  @for (email of selectedReplyToUsers; track email) {
-                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
-                      <span>{{ email }}</span>
-                      <button
-                        type="button"
-                        (click)="removeReplyToUser(email)"
-                        class="text-purple-600 hover:text-purple-800 font-bold"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
           </div>
           @if (attachments().length) {
             <div class="flex items-center gap-3 p-2 mb-2">
@@ -222,42 +191,29 @@
               </ng-template>
             </p-fileupload>
           </div>
-          @if (mailData) {
-            <div class="flex items-center gap-2">
-              <button
-                pButton
-                severity="contrast"
-                type="submit"
-                class="w-full mt-2"
-                [loading]="isLoading()"
-              >
-                <span pButtonIcon class="pi pi-send"></span>
-                <span pButtonLabel>Update</span>
-              </button>
-            </div>
-          } @else {
-            <div class="flex items-center gap-2">
-              <button
-                pButton
-                severity="contrast"
-                type="submit"
-                class="w-full mt-2"
-                [loading]="isLoading()"
-              >
-                <span pButtonIcon class="pi pi-send"></span>
-                <span pButtonLabel>Send</span>
-              </button>
-              <button
-                pButton
-                severity="info"
-                type="button"
-                class="w-full mt-2"
-                [loading]="isLoading()"
-                (click)="onSaveDraft()"
-              >
-                <span pButtonIcon class="pi pi-save"></span>
-                <span pButtonLabel>Save as Draft</span>
-              </button>
+          <div class="flex items-center gap-2">
+            <button
+              pButton
+              severity="contrast"
+              type="submit"
+              class="w-full mt-2"
+              [loading]="isLoading()"
+            >
+              <span pButtonIcon class="pi pi-send"></span>
+              <span pButtonLabel>Send</span>
+            </button>
+            <button
+              pButton
+              severity="info"
+              type="button"
+              class="w-full mt-2"
+              [loading]="isLoading()"
+              (click)="onSaveDraft()"
+            >
+              <span pButtonIcon class="pi pi-save"></span>
+              <span pButtonLabel>Save as Draft</span>
+            </button>
+            @if (!mailData) {
               <button
                 pButton
                 severity="secondary"
@@ -269,8 +225,8 @@
                 <span pButtonIcon class="pi pi-times"></span>
                 <span pButtonLabel>Reset</span>
               </button>
-            </div>
-          }
+            }
+          </div>
         </form>
       </div>
     </div>

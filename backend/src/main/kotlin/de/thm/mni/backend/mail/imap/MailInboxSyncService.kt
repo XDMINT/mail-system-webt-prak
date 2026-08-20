@@ -4,6 +4,7 @@ import de.thm.mni.backend.mail.MailService
 import de.thm.mni.backend.mail.dto.ImportedAttachment
 import jakarta.mail.BodyPart
 import jakarta.mail.Folder
+import jakarta.mail.Flags
 import jakarta.mail.Message
 import jakarta.mail.Multipart
 import jakarta.mail.Part
@@ -11,6 +12,7 @@ import jakarta.mail.Session
 import jakarta.mail.Store
 import jakarta.mail.internet.InternetAddress
 import jakarta.mail.internet.MimeUtility
+import jakarta.mail.search.FlagTerm
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
@@ -26,13 +28,11 @@ import java.util.UUID
 @Service
 class MailInboxSyncService(
     private val mailService: MailService,
-    private val imapSyncStateRepository: ImapSyncStateRepository,
     @Value("\${mail.imap.host:}") private val host: String,
     @Value("\${mail.imap.port:993}") private val port: Int,
     @Value("\${mail.imap.username:}") private val username: String,
     @Value("\${mail.imap.password:}") private val password: String,
     @Value("\${mail.imap.folder:INBOX}") private val folderName: String,
-    @Value("\${mail.imap.recent-window-size:50}") private val recentWindowSize: Int,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -58,59 +58,19 @@ class MailInboxSyncService(
             store.connect(host, port, username, password)
 
             folder = store.getFolder(folderName)
-            folder.open(Folder.READ_ONLY)
+            folder.open(Folder.READ_WRITE)
 
-            val syncState = imapSyncStateRepository.findByFolderName(folderName) ?: ImapSyncState(folderName)
-            val isInitialImport = !syncState.initialImportCompleted
-            val messages = if (isInitialImport) {
-                folder.messages
-            } else {
-                getRecentMessages(folder)
-            }
+            val messages = folder.search(FlagTerm(Flags(Flags.Flag.SEEN), false))
 
-            var importedCount = 0
-            var skippedCount = 0
-            var failedCount = 0
-
-            messages.forEach { message ->
-                try {
-                    val externalMessageId = extractMessageId(message)
-                    if (mailService.getMailByExternalMessageId(externalMessageId) != null) {
-                        skippedCount++
-                        return@forEach
-                    }
-
-                    val parsed = parseMessage(message)
-                    val receivedAt = message.sentDate?.toLocalDateTime() ?: message.receivedDate?.toLocalDateTime()
-                    mailService.createImportedMail(
-                        senderEmail = parsed.fromEmail,
-                        subject = parsed.subject,
-                        content = parsed.content,
-                        attachments = parsed.attachments,
-                        externalMessageId = externalMessageId,
-                        receivedAt = receivedAt,
-                    )
-                    importedCount++
-                } catch (ex: Exception) {
-                    failedCount++
-                    logger.warn("Failed to import email message #{}", message.messageNumber, ex)
-                }
-            }
-
-            syncState.lastSyncAt = LocalDateTime.now()
-            if (isInitialImport && failedCount == 0) {
-                syncState.initialImportCompleted = true
-            }
-            imapSyncStateRepository.save(syncState)
+            val result = importUnseenMessages(messages)
 
             logger.info(
-                "IMAP sync completed for folder {} with mode={}, found={}, imported={}, skipped={}, failed={}",
+                "IMAP sync completed for folder {} with foundUnseen={}, imported={}, skipped={}, failed={}",
                 folderName,
-                if (isInitialImport) "initial" else "incremental",
                 messages.size,
-                importedCount,
-                skippedCount,
-                failedCount
+                result.imported,
+                result.skipped,
+                result.failed
             )
         } catch (ex: Exception) {
             logger.warn("IMAP inbox synchronization failed", ex)
@@ -124,17 +84,6 @@ class MailInboxSyncService(
             } catch (_: Exception) {
             }
         }
-    }
-
-    private fun getRecentMessages(folder: Folder): Array<Message> {
-        val messageCount = folder.messageCount
-        if (messageCount <= 0) {
-            return emptyArray()
-        }
-
-        val windowSize = recentWindowSize.coerceAtLeast(1)
-        val start = maxOf(1, messageCount - windowSize + 1)
-        return folder.getMessages(start, messageCount)
     }
 
     private fun extractMessageId(message: Message): String {
@@ -207,6 +156,41 @@ class MailInboxSyncService(
         }
     }
 
+    internal fun importUnseenMessages(messages: Array<Message>): SyncResult {
+        var importedCount = 0
+        var skippedCount = 0
+        var failedCount = 0
+
+        messages.forEach { message ->
+            try {
+                val externalMessageId = extractMessageId(message)
+                if (mailService.getMailByExternalMessageId(externalMessageId) != null) {
+                    message.setFlag(Flags.Flag.SEEN, true)
+                    skippedCount++
+                    return@forEach
+                }
+
+                val parsed = parseMessage(message)
+                val receivedAt = message.sentDate?.toLocalDateTime() ?: message.receivedDate?.toLocalDateTime()
+                mailService.createImportedMail(
+                    senderEmail = parsed.fromEmail,
+                    subject = parsed.subject,
+                    content = parsed.content,
+                    attachments = parsed.attachments,
+                    externalMessageId = externalMessageId,
+                    receivedAt = receivedAt,
+                )
+                message.setFlag(Flags.Flag.SEEN, true)
+                importedCount++
+            } catch (ex: Exception) {
+                failedCount++
+                logger.warn("Failed to import email message #{}", message.messageNumber, ex)
+            }
+        }
+
+        return SyncResult(importedCount, skippedCount, failedCount)
+    }
+
     private fun isAttachment(part: BodyPart): Boolean {
         return Part.ATTACHMENT.equals(part.disposition, ignoreCase = true) || part.fileName != null
     }
@@ -260,6 +244,12 @@ class MailInboxSyncService(
         val content: String,
         val fromEmail: String,
         val attachments: List<ImportedAttachment>,
+    )
+
+    internal data class SyncResult(
+        val imported: Int,
+        val skipped: Int,
+        val failed: Int,
     )
 
     private data class ParsedContent(

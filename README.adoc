@@ -6,7 +6,7 @@
 
 This repository contains a university project for a shared email-support application. Registered internal users can work with mails through an Angular client and a Spring Boot API. PostgreSQL stores business data and SeaweedFS provides S3-compatible attachment storage. SMTP and IMAP connect the application to the configurable support mailbox.
 
-The current implementation includes the reproducible one-command build/start workflow and the Keycloak/OpenID Connect integration. Later assignment phases, including the final IMAP strategy, the explicit support reply flow, WAF/TLS/NIDS, linting and C4 documentation, remain tracked in `PROJEKTPLAN.md`. This document does not claim those phases are already complete.
+The current implementation includes the reproducible one-command build/start workflow, Keycloak/OpenID Connect, the shared support-reply flow and the final flag-based IMAP strategy. Later assignment phases, including WAF/TLS/NIDS, linting and C4 documentation, remain tracked in `PROJEKTPLAN.md`. This document does not claim those phases are already complete.
 
 == Technology stack
 
@@ -121,10 +121,18 @@ The complete list with safe local defaults is maintained in `.env.example`.
 * `KEYCLOAK_*`, `OIDC_*`: development administrator, public URL, issuer, JWK set and discovery URL
 * `APP_CORS_ALLOWED_ORIGINS`: explicit local browser origins
 * `STORAGE_S3_*`: SeaweedFS endpoint, bucket, region and credentials
-* `SPRING_MAIL_*`, `MAIL_FROM_ADDRESS`, `MAIL_REPLY_TO_ADDRESS`: SMTP settings
+* `SPRING_MAIL_*`, `MAIL_FROM_ADDRESS`: SMTP settings
 * `MAIL_IMAP_*`: IMAP settings and polling behavior
 
 SMTP and IMAP are disabled when the corresponding required host or credentials are empty, so the example application remains directly usable without real THM secrets.
+
+== Shared support workflow
+
+Every registered Keycloak user can open the seeded or IMAP-imported external support mails. The reply action creates a draft addressed to the original external sender. It assigns or reuses a random `TICKET-XXXXXXXX` code and displays it in the prefixed reply subject before sending.
+
+The authenticated user is stored as the internal author of the reply. The SMTP `From` header always uses the shared THM address configured as `MAIL_FROM_ADDRESS`; no user-selectable `Reply-To` recipient exists. Without a separate `Reply-To` header, subsequent external answers return to that same THM address.
+
+The IMAP poller searches only messages without the `SEEN` flag. It marks a message as seen only after its database data and SeaweedFS attachments have been stored successfully. Failed imports remain unseen for the next poll, while the external `Message-ID` provides an additional deduplication guard.
 
 == OpenAPI
 

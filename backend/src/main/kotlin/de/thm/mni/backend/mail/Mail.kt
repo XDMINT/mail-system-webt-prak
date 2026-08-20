@@ -56,6 +56,10 @@ class Mail {
     @Column(name = "external_sender_email", columnDefinition = "TEXT")
     var externalSenderEmail: String? = null
 
+    @ManyToOne
+    @JoinColumn(name = "in_reply_to_mail_id")
+    var inReplyToMail: Mail? = null
+
     @OneToMany(mappedBy = "mail", cascade = [CascadeType.ALL], orphanRemoval = true)
     var attachments: MutableList<Attachment> = mutableListOf()
 

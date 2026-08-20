@@ -42,6 +42,13 @@ class ErrorHandler {
         return ResponseEntity<AppError>(error, HttpStatus.BAD_REQUEST)
     }
 
+    @ExceptionHandler(MailDeliveryException::class)
+    fun handleMailDeliveryException(err: MailDeliveryException): ResponseEntity<AppError> {
+        log.warn("Mail delivery failed: {}", err.message)
+        val error = AppError(HttpStatus.BAD_GATEWAY.value(), err.message)
+        return ResponseEntity<AppError>(error, HttpStatus.BAD_GATEWAY)
+    }
+
     // Handle all other exceptions
     @ExceptionHandler(Exception::class)
     fun handleAllExceptions(e: Exception): ResponseEntity<AppError> {

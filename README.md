@@ -111,11 +111,13 @@ The backend generates its OpenAPI description from the running code. It includes
 
 The OpenAPI endpoints are public; application API endpoints under `/api/**` require a valid Keycloak access token.
 
-## SMTP and IMAP
+## Support mail, SMTP and IMAP
 
-SMTP and IMAP are optional for the local demo and are disabled when their hosts or credentials are empty. Configure them only in the local `.env`; all supported values are listed in `.env.example`.
+The seeded external support request can be opened and answered by every registered Keycloak user. Creating a reply draft assigns or reuses a random `TICKET-XXXXXXXX` number, prefixes the reply subject and automatically addresses the external sender. The logged-in user remains the internal author; SMTP always uses the shared THM address configured as `MAIL_FROM_ADDRESS` for the visible `From` header.
 
-The current IMAP behavior and its required upcoming adjustment are tracked in `PROJEKTPLAN.md`. It is not part of the completed Keycloak/build phase.
+The IMAP poller searches only messages without the `SEEN` flag. It stores the message and its attachments in PostgreSQL and SeaweedFS and marks the source message as `SEEN` only after the complete import succeeds. The external `Message-ID` provides an additional deduplication guard. Failed imports remain unseen and are retried.
+
+SMTP and IMAP are optional for the local demo and are disabled when their hosts or credentials are empty. Configure real THM credentials only in the local `.env`; all supported values are listed in `.env.example`.
 
 ## Repository layout
 

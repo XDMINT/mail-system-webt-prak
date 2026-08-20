@@ -46,6 +46,7 @@ class DatabaseInitializer(
                             lastName = dto.lastName,
                             email = dto.email,
                             identityProviderSubject = dto.identityProviderSubject,
+                            externalContact = dto.externalContact,
                         )
                     )
                 }
@@ -71,8 +72,11 @@ class DatabaseInitializer(
                 if(dto.status == MailStatus.SENT) {
                     mail.status = MailStatus.SENT
                 }
+                mail.source = dto.source
+                mail.externalMessageId = dto.externalMessageId
+                mail.externalSenderEmail = dto.externalSenderEmail
                 val createdMail = mailRepository.save(mail)
-                this.createMailRecords(createdMail, dto.toEmails, dto.ccEmails, dto.bccEmails, dto.replyToEmails)
+                this.createMailRecords(createdMail, dto.toEmails, dto.ccEmails, dto.bccEmails)
             }
 
         } catch (e: Exception) {
@@ -85,8 +89,7 @@ class DatabaseInitializer(
         mail: Mail,
         to: List<String>,
         cc: List<String>,
-        bcc: List<String>,
-        replyTo: List<String>)
+        bcc: List<String>)
     {
         to.forEach { addr -> mailRecordRepository.save(MailRecord(
             mail = mail,
@@ -106,10 +109,5 @@ class DatabaseInitializer(
             type = MailType.BCC
         ))}
 
-        replyTo.forEach { addr -> mailRecordRepository.save(MailRecord(
-            mail = mail,
-            user = userRepository.findUserByEmail(addr)!!,
-            type = MailType.REPLY_TO
-        ))}
     }
 }

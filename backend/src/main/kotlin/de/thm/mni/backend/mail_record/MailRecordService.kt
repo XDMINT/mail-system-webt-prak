@@ -3,6 +3,7 @@ package de.thm.mni.backend.mail_record
 import de.thm.mni.backend.mail.Mail
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailType
+import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail_record.dto.CreateMailRecord
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Page
@@ -35,7 +36,7 @@ class MailRecordService(private val repository: MailRecordRepository) {
 
     fun getAllIncomingMailsForUser(userId: UUID): List<Mail> {
         return repository.findAllByUserId(userId)
-            .filter { it -> it.type !== MailType.REPLY_TO }
+            .filter { it.type in RECIPIENT_TYPES }
             .map { it -> it.mail!! }
             .filter { mail -> mail.status == MailStatus.SENT }
     }
@@ -43,10 +44,15 @@ class MailRecordService(private val repository: MailRecordRepository) {
     fun getIncomingMailsForUser(userId: UUID, pageable: Pageable): Page<Mail> {
         return repository.findIncomingMailsForUser(
             userId = userId,
-            replyToType = MailType.REPLY_TO,
+            recipientTypes = RECIPIENT_TYPES,
             status = MailStatus.SENT,
+            externalSource = MailSource.EXTERN,
             pageable = pageable
         )
+    }
+
+    private companion object {
+        val RECIPIENT_TYPES = listOf(MailType.TO, MailType.CC, MailType.BCC)
     }
 
 }

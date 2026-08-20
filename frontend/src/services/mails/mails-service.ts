@@ -32,7 +32,11 @@ export class MailsService {
   }
 
   public sendMail(id: string) {
-    return this.http.post(`${API_BASE_URL}/mails/send/${id}`, {});
+    return this.http.post<Mail>(`${API_BASE_URL}/mails/send/${id}`, {});
+  }
+
+  public createReplyDraft(id: string) {
+    return this.http.post<Mail>(`${API_BASE_URL}/mails/${id}/reply`, {});
   }
 
   public deleteMail(id: string) {
