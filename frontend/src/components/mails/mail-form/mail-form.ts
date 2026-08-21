@@ -67,6 +67,7 @@ export class MailForm implements OnInit, OnChanges {
   protected uploadedFiles = signal<File[]>([]);
   protected isLoading = signal(false);
   protected attachments = signal<Attachment[]>([]);
+  protected readonly maxAttachmentFileSize = 5 * 1024 * 1024;
 
   ngOnInit() {
     this.loadUsers();
@@ -110,7 +111,7 @@ export class MailForm implements OnInit, OnChanges {
   }
 
   onFileSelect(event: FileSelectEvent) {
-    this.uploadedFiles.set([...this.uploadedFiles(), ...event.files]);
+    this.uploadedFiles.set([...event.currentFiles]);
   }
 
   onFileRemove(event: FileRemoveEvent) {

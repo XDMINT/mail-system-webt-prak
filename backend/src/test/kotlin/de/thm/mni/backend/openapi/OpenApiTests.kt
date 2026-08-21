@@ -116,6 +116,10 @@ class OpenApiTests {
         val requiredParts = createRequest["required"].toString()
         assertTrue(requiredParts.contains("data"))
         assertFalse(requiredParts.contains("attachments"))
+        assertNotNull(
+            spec["paths"]["/api/mails/send"]["post"]["requestBody"]["content"]
+                .get("multipart/form-data"),
+        )
         assertEquals(
             "binary",
             spec["paths"]["/api/attachments/{attachmentId}"]["get"]["responses"]["200"]["content"]

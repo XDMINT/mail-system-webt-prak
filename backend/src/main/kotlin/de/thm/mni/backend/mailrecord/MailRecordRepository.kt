@@ -16,21 +16,31 @@ interface MailRecordRepository: CrudRepository<MailRecord, MailRecordId> {
     fun findAllByUserId(userId: UUID): MutableList<MailRecord>
     @Query(
         value = """
-            select distinct m
+            select m
             from Mail m
-            left join MailRecord mr on mr.mail = m
             where m.status = :status
               and (m.source = :externalSource
-                or (mr.user.id = :userId and mr.type in :recipientTypes))
+                or exists (
+                    select mr.id
+                    from MailRecord mr
+                    where mr.mail = m
+                      and mr.user.id = :userId
+                      and mr.type in :recipientTypes
+                ))
             order by coalesce(m.sentAt, m.createdAt) desc
         """,
         countQuery = """
-            select count(distinct m)
+            select count(m)
             from Mail m
-            left join MailRecord mr on mr.mail = m
             where m.status = :status
               and (m.source = :externalSource
-                or (mr.user.id = :userId and mr.type in :recipientTypes))
+                or exists (
+                    select mr.id
+                    from MailRecord mr
+                    where mr.mail = m
+                      and mr.user.id = :userId
+                      and mr.type in :recipientTypes
+                ))
         """
     )
     fun findIncomingMailsForUser(

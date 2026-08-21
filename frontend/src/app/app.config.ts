@@ -21,6 +21,9 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withFetch(), withInterceptors([authInterceptorInterceptor])),
     providePrimeNG({
+      translation: {
+        pending: 'Ready',
+      },
       theme: {
         preset: Aura,
         options: {

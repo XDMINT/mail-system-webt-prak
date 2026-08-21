@@ -92,6 +92,16 @@ class MailServiceTests @Autowired constructor(
     }
 
     @Test
+    fun `an incoming mail with multiple recipient records occurs only once`() {
+        val internalUser = userService.getUserByEmail("aallanson@example.com")!!
+        val supportRequest = mailService.getMailByExternalMessageId("demo-support-request@example.org")!!
+
+        val incoming = mailRecordService.getIncomingMailsForUser(internalUser.id!!, PageRequest.of(0, 100))
+
+        assertEquals(1, incoming.content.count { it.id == supportRequest.id })
+    }
+
+    @Test
     fun `createImportedMail allows multiple mails with same ticket code`() {
         val ticketCode = "TICKET-1A2B3C4D"
         val first = mailService.createImportedMail(

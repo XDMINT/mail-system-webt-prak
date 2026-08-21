@@ -233,7 +233,7 @@ class MailController(private val mailService: MailService,
     @ApiResponse(responseCode = "404", description = "Recipient not found")
     @ApiResponse(responseCode = "413", description = "Attachment size limit exceeded")
     @ApiResponse(responseCode = "502", description = "SMTP delivery failed")
-    @PostMapping("/send")
+    @PostMapping("/send", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @ResponseStatus(HttpStatus.CREATED)
     fun createAndSendMail(@Valid @RequestPart("data") data: MailRequest,
                           @RequestPart("attachments", required = false) attachments: List<MultipartFile>?,
