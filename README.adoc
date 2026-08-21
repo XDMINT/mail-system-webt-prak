@@ -382,3 +382,12 @@ docker-compose.yml       Complete local stack
 README.adoc              System documentation
 team.txt                 Team members and matriculation numbers
 ....
+
+== Architecture diagram
+C4 Level 1 (Context), Level 2 (Container) and Level 3 (Components) diagrams
+
+image::img/C4 Level 1.png[Architecture diagram, width=100%]
+
+image::img/C4 Level 2.png[Architecture diagram, width=100%]
+
+image::img/C4 Level3.png[Architecture diagram, width=100%]
