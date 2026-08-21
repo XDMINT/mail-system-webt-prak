@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { MessageService } from 'primeng/api';
 
 import { MailEdit } from './mail-edit';
 
@@ -8,7 +10,8 @@ describe('MailEdit', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MailEdit]
+      imports: [MailEdit],
+      providers: [MessageService, provideRouter([])],
     })
     .compileComponents();
 

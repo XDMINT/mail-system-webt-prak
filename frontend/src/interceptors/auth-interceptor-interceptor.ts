@@ -1,28 +1,29 @@
-import {HttpErrorResponse, HttpInterceptorFn} from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { AuthService } from '../services/auth/auth-service';
-import {tap} from 'rxjs';
+import { catchError, from, switchMap, throwError } from 'rxjs';
+import { API_BASE_URL } from '../constants';
+import { KeycloakService } from '../services/auth/keycloak-service';
 
-export const authInterceptorInterceptor: HttpInterceptorFn = (req, next) => {
-  const authService = inject(AuthService);
-  const authToken = authService.getToken();
-
-  if (!authToken) {
-    return next(req);
+export const authInterceptorInterceptor: HttpInterceptorFn = (request, next) => {
+  if (!request.url.startsWith(API_BASE_URL)) {
+    return next(request);
   }
 
-  const newReq = req.clone({
-    headers: req.headers.set('Authorization', `Bearer ${authToken}`),
-  });
+  const keycloak = inject(KeycloakService);
 
+  return from(keycloak.getValidAccessToken()).pipe(
+    switchMap((token) => {
+      const authenticatedRequest = token
+        ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
+        : request;
 
-  return next(newReq).pipe(
-    tap({
-      error: (error: HttpErrorResponse) => {
-        if(error.status === 401) {
-          authService.logout();
-        }
+      return next(authenticatedRequest);
+    }),
+    catchError((error: HttpErrorResponse) => {
+      if (error.status === 401) {
+        keycloak.clearToken();
       }
+      return throwError(() => error);
     }),
   );
 };

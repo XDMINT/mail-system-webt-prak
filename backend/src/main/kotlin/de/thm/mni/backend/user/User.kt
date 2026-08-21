@@ -16,29 +16,39 @@ class User {
     @GeneratedValue(strategy = GenerationType.UUID)
     var id : UUID? = null
 
-    @Column(name = "first_name")
+    @Column(name = "first_name", nullable = false, length = NAME_MAX_LENGTH)
     var firstName: String = ""
 
-    @Column(name = "last_name")
+    @Column(name = "last_name", nullable = false, length = NAME_MAX_LENGTH)
     var lastName: String = ""
 
-    @Column(name = "email", unique = true)
+    @Column(name = "email", nullable = false, unique = true, length = EMAIL_MAX_LENGTH)
     var email: String = ""
 
-    @Column(name = "password")
-    var password: String = ""
+    @Column(name = "identity_provider_subject", unique = true, length = IDENTITY_SUBJECT_MAX_LENGTH)
+    var identityProviderSubject: String? = null
 
     @Column(name = "external_contact", nullable = false)
     var externalContact: Boolean = false
 
     constructor()
-    constructor(firstName: String, lastName: String, email: String, password: String, externalContact: Boolean = false) {
+    constructor(
+        firstName: String,
+        lastName: String,
+        email: String,
+        externalContact: Boolean = false,
+        identityProviderSubject: String? = null,
+    ) {
         this.firstName = firstName
         this.lastName = lastName
         this.email = email
-        this.password = password
         this.externalContact = externalContact
+        this.identityProviderSubject = identityProviderSubject
     }
 
-
+    companion object {
+        const val NAME_MAX_LENGTH = 255
+        const val EMAIL_MAX_LENGTH = 255
+        const val IDENTITY_SUBJECT_MAX_LENGTH = 255
+    }
 }

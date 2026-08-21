@@ -11,6 +11,7 @@ build/
 out/
 
 # Kotlin / Java
+.kotlin/
 *.class
 *.jar
 *.war
@@ -46,6 +47,7 @@ coverage/
 # Environment files
 .env
 .env.*
+!.env.example
 env.local
 
 # Logs

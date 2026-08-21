@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MessageService } from 'primeng/api';
 
 import { MailInbox } from './mail-inbox';
 
@@ -8,7 +9,8 @@ describe('MailInbox', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MailInbox]
+      imports: [MailInbox],
+      providers: [MessageService],
     })
     .compileComponents();
 

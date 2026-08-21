@@ -32,7 +32,11 @@ export class MailsService {
   }
 
   public sendMail(id: string) {
-    return this.http.post(`${API_BASE_URL}/mails/send/${id}`, {});
+    return this.http.post<Mail>(`${API_BASE_URL}/mails/send/${id}`, {});
+  }
+
+  public createReplyDraft(id: string) {
+    return this.http.post<Mail>(`${API_BASE_URL}/mails/${id}/reply`, {});
   }
 
   public deleteMail(id: string) {
@@ -62,20 +66,17 @@ export class MailsService {
     return this.http.put<Mail>(`${API_BASE_URL}/mails/${id}`, formData);
   }
 
-  public fetchAttachment(id: string) {
-    return this.http.get(`${API_BASE_URL}/attachments/${id}`, { responseType: 'blob' });
+  public fetchAttachment(id: string, preview = false) {
+    return this.http.get(`${API_BASE_URL}/attachments/${id}`, {
+      params: { preview },
+      responseType: 'blob',
+    });
   }
 
   private createFormData(mail: CreateMail | UpdateMail, files: File[]): FormData {
     const formData = new FormData();
     formData.append('data', new Blob([JSON.stringify(mail)], { type: 'application/json' }));
-    if (files.length === 0) {
-      formData.append('attachments', new Blob([], { type: 'application/octet-stream' }));
-    } else {
-      files.forEach((file) => {
-        formData.append('attachments', file);
-      });
-    }
+    files.forEach((file) => formData.append('attachments', file));
     return formData;
   }
 }

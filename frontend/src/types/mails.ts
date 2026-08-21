@@ -21,17 +21,17 @@ export type Mail = {
   source: MailSource;
   trackingCode?: string;
   externalSenderEmail?: string;
+  inReplyToMailId?: string;
   to: User[];
   cc: User[];
   bcc: User[];
-  replyTo: User[];
   attachments: Attachment[];
   createdAt: string;
   updatedAt: string;
   sentAt?: string;
 };
 
-export type MailListItem = Omit<Mail, 'to' | 'cc' | 'bcc' | 'replyTo' | 'attachments'> & {
+export type MailListItem = Omit<Mail, 'to' | 'cc' | 'bcc' | 'attachments'> & {
   attachmentCount: number;
 };
 
@@ -50,7 +50,8 @@ export type CreateMail = {
   toIds: string[];
   ccIds: string[];
   bccIds: string[];
-  replyToIds: string[];
 };
 
-export type UpdateMail = CreateMail;
+export type UpdateMail = CreateMail & {
+  retainedAttachmentIds: string[];
+};

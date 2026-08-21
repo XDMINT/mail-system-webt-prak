@@ -4,31 +4,42 @@
       "firstName": "Ameline",
       "lastName": "Allanson",
       "email": "aallanson@example.com",
-      "password": "123456"
+      "identityProviderSubject": "11111111-1111-4111-8111-111111111111",
+      "externalContact": false
     },
     {
       "firstName": "Sanson",
       "lastName": "Vardey",
       "email": "svardey1@example.com",
-      "password": "123456"
+      "identityProviderSubject": "22222222-2222-4222-8222-222222222222",
+      "externalContact": false
     },
     {
       "firstName": "Jami",
       "lastName": "Poe",
       "email": "jpoe@example.uk",
-      "password": "123456"
+      "identityProviderSubject": "33333333-3333-4333-8333-333333333333",
+      "externalContact": false
     },
     {
       "firstName": "Trent",
       "lastName": "Ianno",
       "email": "tianno3@example.com",
-      "password": "123456"
+      "identityProviderSubject": "44444444-4444-4444-8444-444444444444",
+      "externalContact": false
     },
     {
       "firstName": "Alikee",
       "lastName": "Raisbeck",
       "email": "araisbeck4@example.com",
-      "password": "123456"
+      "identityProviderSubject": "55555555-5555-4555-8555-555555555555",
+      "externalContact": false
+    },
+    {
+      "firstName": "Erika",
+      "lastName": "Example",
+      "email": "erika.external@example.org",
+      "externalContact": true
     }
   ],
   "mails": [
@@ -37,26 +48,27 @@
       "subject": "Re: Hello",
       "content": "Got it, Trent. The test email came through perfectly.",
       "status": "DRAFT",
+      "source": "INTERN",
       "toEmails": ["tianno3@example.com"],
       "ccEmails": ["araisbeck4@example.com"],
-      "bccEmails": [],
-      "replyToEmails": []
+      "bccEmails": []
     },
     {
       "senderEmail": "aallanson@example.com",
       "subject": "UI Update: PrimeNG components",
       "content": "The new components for the detailed mail view are almost ready. Let's review the layout tomorrow.",
       "status": "SENT",
+      "source": "INTERN",
       "toEmails": ["jpoe@example.uk", "tianno3@example.com"],
       "ccEmails": ["svardey1@example.com"],
-      "bccEmails": ["araisbeck4@example.com"],
-      "replyToEmails": []
+      "bccEmails": ["araisbeck4@example.com"]
     },
     {
       "senderEmail": "jpoe@example.uk",
       "subject": "Weekly Sync Agenda",
       "content": "Hi team, please find the agenda for our upcoming meeting attached. Let me know if you want to add any topics.",
       "status": "SENT",
+      "source": "INTERN",
       "toEmails": [
         "aallanson@example.com",
         "svardey1@example.com",
@@ -64,28 +76,45 @@
         "araisbeck4@example.com"
       ],
       "ccEmails": [],
-      "bccEmails": [],
-      "replyToEmails": ["jpoe@example.uk"]
+      "bccEmails": []
     },
     {
       "senderEmail": "araisbeck4@example.com",
       "subject": "Quick question about the data model",
       "content": "Could you clarify if we are making the CC and BCC fields optional in the next database migration?",
       "status": "DRAFT",
+      "source": "INTERN",
       "toEmails": ["aallanson@example.com"],
       "ccEmails": [],
-      "bccEmails": [],
-      "replyToEmails": []
+      "bccEmails": []
     },
     {
       "senderEmail": "tianno3@example.com",
       "subject": "Lunch today?",
       "content": "Anyone up for grabbing lunch around 1 PM?",
       "status": "SENT",
+      "source": "INTERN",
       "toEmails": ["svardey1@example.com", "jpoe@example.uk"],
       "ccEmails": [],
-      "bccEmails": [],
-      "replyToEmails": []
+      "bccEmails": []
+    },
+    {
+      "senderEmail": "erika.external@example.org",
+      "subject": "Question about my semester registration",
+      "content": "Hello support team, could you please help me verify my semester registration?",
+      "status": "SENT",
+      "source": "EXTERN",
+      "externalMessageId": "demo-support-request@example.org",
+      "externalSenderEmail": "erika.external@example.org",
+      "toEmails": [
+        "aallanson@example.com",
+        "svardey1@example.com",
+        "jpoe@example.uk",
+        "tianno3@example.com",
+        "araisbeck4@example.com"
+      ],
+      "ccEmails": [],
+      "bccEmails": []
     }
   ]
 }

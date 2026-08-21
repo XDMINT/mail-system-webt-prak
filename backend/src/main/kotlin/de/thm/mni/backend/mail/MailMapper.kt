@@ -5,8 +5,8 @@ import de.thm.mni.backend.mail.dto.MailDTO
 import de.thm.mni.backend.mail.dto.MailListItemDTO
 import de.thm.mni.backend.mail.enums.MailSource
 import de.thm.mni.backend.mail.enums.MailType
-import de.thm.mni.backend.mail_record.MailRecord
-import de.thm.mni.backend.mail_record.MailRecordService
+import de.thm.mni.backend.mailrecord.MailRecord
+import de.thm.mni.backend.mailrecord.MailRecordService
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.dto.toDTO
 import org.springframework.stereotype.Component
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
 class MailMapper(private val mailRecordService: MailRecordService) {
     fun toListItemDTO(mail: Mail): MailListItemDTO {
         return MailListItemDTO(
-            id = mail.id,
+            id = requireNotNull(mail.id) { "Cannot map a mail without an identifier" },
             sender = mail.sender?.toDTO()!!,
             subject = mail.subject,
             content = mail.content.take(PREVIEW_LENGTH),
@@ -34,7 +34,7 @@ class MailMapper(private val mailRecordService: MailRecordService) {
     fun toDTO(user: User, mail: Mail): MailDTO {
         val records = mailRecordService.getMailRecordByMailId(mail.id!!)
         return MailDTO(
-            id = mail.id,
+            id = requireNotNull(mail.id) { "Cannot map a mail without an identifier" },
             sender = mail.sender?.toDTO()!!,
             subject = mail.subject,
             content = mail.content,
@@ -42,11 +42,11 @@ class MailMapper(private val mailRecordService: MailRecordService) {
             source = mail.source,
             trackingCode = mail.trackingCode,
             externalSenderEmail = mail.externalSenderEmail,
-            to = records.filter { it.type == MailType.TO && !it.user!!.externalContact }.map { it.user!!.toDTO() },
-            cc = records.filter { it.type == MailType.CC && !it.user!!.externalContact }.map { it.user!!.toDTO() },
-            bcc = records.filter { it.type == MailType.BCC && !it.user!!.externalContact && (it.user!!.id == user.id || mail.sender!!.id == user.id) }.map { it.user!!.toDTO() },
-            replyTo = records.filter { it.type == MailType.REPLY_TO && !it.user!!.externalContact }.map { it.user!!.toDTO() },
-            attachments = mail.attachments.map { it -> it.toDTO() },
+            inReplyToMailId = mail.inReplyToMail?.id,
+            to = records.filter { it.type == MailType.TO }.map { it.user!!.toDTO() },
+            cc = records.filter { it.type == MailType.CC }.map { it.user!!.toDTO() },
+            bcc = records.filter { it.type == MailType.BCC && (it.user!!.id == user.id || mail.sender!!.id == user.id) }.map { it.user!!.toDTO() },
+            attachments = mail.attachments.map { it.toDTO() },
             createdAt = mail.createdAt,
             updatedAt = mail.updatedAt,
             sentAt = mail.sentAt

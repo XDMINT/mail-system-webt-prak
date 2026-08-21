@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { MessageService } from 'primeng/api';
 
 import { MailDetails } from './mail-details';
 
@@ -8,7 +10,8 @@ describe('MailDetails', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MailDetails]
+      imports: [MailDetails],
+      providers: [MessageService, provideRouter([])],
     })
     .compileComponents();
 
@@ -19,5 +22,13 @@ describe('MailDetails', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('should only preview safe raster image types', () => {
+    const attachment = { id: 'attachment-id', fileName: 'image', size: 1 };
+
+    expect(component.isPreviewable({ ...attachment, mimeType: 'image/png' })).toBe(true);
+    expect(component.isPreviewable({ ...attachment, mimeType: 'image/svg+xml' })).toBe(false);
+    expect(component.isPreviewable({ ...attachment, mimeType: 'text/html' })).toBe(false);
   });
 });

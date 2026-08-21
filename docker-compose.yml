@@ -1,92 +1,286 @@
 services:
   database:
     image: postgres:17
-    restart: always
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+      - /var/run/postgresql:rw,noexec,nosuid,size=16m,uid=999,gid=999
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    # KEINE PORTS NACH AUSSEN – Erfüllt die Sicherheitsvorgabe!
+      POSTGRES_USER: ${DB_USER:-mail-system}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mail-system}
+      POSTGRES_DB: ${DB_NAME:-mail-system}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mail-system} -d ${DB_NAME:-mail-system}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - database
 
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
-    restart: always
+    image: chrislusf/seaweedfs:4.06
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,uid=1000,gid=1000
     command: "server -s3 -s3.config=/etc/seaweedfs/s3.json -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0"
     volumes:
       - seaweed_data:/data
       - ./seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9333/cluster/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - storage
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-https://localhost/auth}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/mail-system-realm.json:/opt/keycloak/data/import/mail-system-realm.json:ro
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000;
+          printf 'GET /auth/health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3;
+          grep -q '200 OK' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=1000,gid=0
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - application
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    restart: always
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     environment:
-        # Doppelte Absicherung für Spring Boot & Postgres
-        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-        SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/${DB_NAME}
-        SPRING_DATASOURCE_USERNAME: ${DB_USER}
-        SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-        SPRING_JPA_HIBERNATE_DDL_AUTO: ${DB_DDL_AUTO:-update}
-        DB_URL: jdbc:postgresql://database:5432/${DB_NAME}
-        DB_DRIVER: org.postgresql.Driver
-        DB_USER: ${DB_USER}
-        DB_PASSWORD: ${DB_PASSWORD}
-        DB_DDL_AUTO: ${DB_DDL_AUTO:-update}
-        APP_NAME: ${APP_NAME:-mail-project}
-        APP_SECRET: ${APP_SECRET}
-        APP_JWT_EXPIRES: ${APP_JWT_EXPIRES:-3600}
-        APP_JWT_SECRET: ${APP_JWT_SECRET}
-        STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://seaweedfs:8333}
-        STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-mail-attachments}
-        STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
-        STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-mail-system}
-        STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-mail-system-secret}
-        # Mail transport / inbox sync
-        SPRING_MAIL_HOST: ${SPRING_MAIL_HOST}
-        SPRING_MAIL_PORT: ${SPRING_MAIL_PORT}
-        SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
-        SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
-        MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
-        MAIL_REPLY_TO_ADDRESS: ${MAIL_REPLY_TO_ADDRESS:-}
-        # SMTP debug/SSL troubleshooting
-        SPRING_MAIL_PROPERTIES_MAIL_DEBUG: "true"
-        SPRING_MAIL_PROPERTIES_MAIL_TRANSPORT_PROTOCOL: smtps
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_TRUST: mailgate.thm.de
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE: "true"
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
-        SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
-        MAIL_IMAP_HOST: ${MAIL_IMAP_HOST}
-        MAIL_IMAP_PORT: ${MAIL_IMAP_PORT}
-        MAIL_IMAP_USERNAME: ${MAIL_IMAP_USERNAME}
-        MAIL_IMAP_PASSWORD: ${MAIL_IMAP_PASSWORD}
-        MAIL_IMAP_FOLDER: ${MAIL_IMAP_FOLDER}
-        MAIL_IMAP_POLL_INTERVAL_MS: ${MAIL_IMAP_POLL_INTERVAL_MS:-5000}
-        MAIL_IMAP_RECENT_WINDOW_SIZE: ${MAIL_IMAP_RECENT_WINDOW_SIZE:-50}
-      # KEINE PORTS NACH AUSSEN – Sicher hinter Caddy versteckt!
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/${DB_NAME:-mail-system}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-mail-system}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-mail-system}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DB_DDL_AUTO:-update}
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI:-https://localhost/auth/realms/mail-system}
+      OIDC_JWK_SET_URI: ${OIDC_JWK_SET_URI:-http://keycloak:8080/auth/realms/mail-system/protocol/openid-connect/certs}
+      OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL:-https://localhost/auth/realms/mail-system/.well-known/openid-configuration}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://localhost,http://localhost:4200}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://seaweedfs:8333}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-mail-attachments}
+      ATTACHMENT_MAX_FILE_SIZE: ${ATTACHMENT_MAX_FILE_SIZE:-5MB}
+      ATTACHMENT_MAX_REQUEST_SIZE: ${ATTACHMENT_MAX_REQUEST_SIZE:-10MB}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-mail-system}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-mail-system-secret}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-465}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      SPRING_MAIL_PROPERTIES_MAIL_DEBUG: ${SPRING_MAIL_DEBUG:-false}
+      SPRING_MAIL_PROPERTIES_MAIL_TRANSPORT_PROTOCOL: smtps
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_TRUST: ${SPRING_MAIL_SSL_TRUST:-mailgate.thm.de}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
+      MAIL_IMAP_USERNAME: ${MAIL_IMAP_USERNAME:-}
+      MAIL_IMAP_PASSWORD: ${MAIL_IMAP_PASSWORD:-}
+      MAIL_IMAP_FOLDER: ${MAIL_IMAP_FOLDER:-INBOX}
+      MAIL_IMAP_POLL_INTERVAL_MS: ${MAIL_IMAP_POLL_INTERVAL_MS:-5000}
     depends_on:
-        seaweedfs:
-          condition: service_started
-        database:
-          condition: service_healthy
+      database:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - application
+      - database
+      - storage
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    restart: always
-    ports:
-      - "80:80"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
+      - /config:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
+      - /data:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - web
+
+  proxy:
+    image: owasp/modsecurity-crs:4.25-nginx-lts
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: localhost
+      PORT: "8080"
+      SSL_PORT: "8443"
+      NGINX_ALWAYS_TLS_REDIRECT: "on"
+      SSL_CERT_FILE: /run/secrets/proxy_certificate
+      SSL_CERT_KEY_FILE: /run/secrets/proxy_private_key
+      MODSEC_RULE_ENGINE: "On"
+      MODSEC_AUDIT_ENGINE: "RelevantOnly"
+      MODSEC_AUDIT_LOG: /dev/stdout
+      MODSEC_AUDIT_LOG_FORMAT: JSON
+      # Keep transaction metadata and rule messages, but never log complete
+      # request headers/bodies (which can contain bearer tokens or mail data).
+      MODSEC_AUDIT_LOG_PARTS: "AHZ"
+      # The /tmp tmpfs hides the image's pre-created upload subdirectory.
+      # Temporary multipart parts therefore use the same bounded tmpfs directly.
+      MODSEC_UPLOAD_DIR: /tmp
+      BLOCKING_PARANOIA: "2"
+      DETECTION_PARANOIA: "3"
+      ALLOWED_METHODS: "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      MODSEC_REQ_BODY_ACCESS: "On"
+      MODSEC_REQ_BODY_LIMIT: "13107200"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "1048576"
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    secrets:
+      - proxy_certificate
+      - proxy_private_key
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=101,gid=101
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--insecure", "https://127.0.0.1:8443/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ingress
+      - web
+      - application
+
+  ips:
+    build:
+      context: ./ips
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      FORWARD_HOST: proxy
+      FORWARD_PORTS: "8080 8443"
+    ports:
+      - "80:8080"
+      - "443:8443"
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - NET_ADMIN
+      - NET_RAW
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    depends_on:
+      proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "--spider", "https://proxy:8443/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ingress
 
 volumes:
   db_data:
   seaweed_data:
+  keycloak_data:
+
+secrets:
+  proxy_certificate:
+    file: ./proxy/cert/proxy.crt
+  proxy_private_key:
+    file: ./proxy/cert/proxy.key
+
+networks:
+  ingress:
+  web:
+  application:
+  database:
+  storage:

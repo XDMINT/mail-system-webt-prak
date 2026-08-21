@@ -1,4 +1,4 @@
-import {Component, inject, Input, signal} from '@angular/core';
+import {Component, inject, Input, OnDestroy, OnInit, signal} from '@angular/core';
 import { Router } from '@angular/router';
 import { MailsService } from '../../../services/mails/mails-service';
 import { MessageService } from 'primeng/api';
@@ -14,6 +14,8 @@ import { ButtonModule } from 'primeng/button';
 import {getSeverityBadge, getSourceBadge} from '../../../utils/badges';
 import { ImageModule } from 'primeng/image';
 import {AuthService} from '../../../services/auth/auth-service';
+import { Attachment } from '../../../types/attachment';
+import { User } from '../../../types/user';
 
 @Component({
   selector: 'app-mail-details',
@@ -32,7 +34,7 @@ import {AuthService} from '../../../services/auth/auth-service';
   templateUrl: './mail-details.html',
   styleUrl: './mail-details.css',
 })
-export class MailDetails {
+export class MailDetails implements OnDestroy, OnInit {
 
   @Input() protected id!: string;
 
@@ -44,6 +46,7 @@ export class MailDetails {
 
   protected mail = signal<Mail | null>(null);
   protected isLoading = signal(true);
+  private previewUrls = new Set<string>();
 
   ngOnInit() {
     this.loadMail(this.id);
@@ -58,11 +61,11 @@ export class MailDetails {
     this.isLoading.set(true);
     this.mailsService.getMailById(id).subscribe({
       next: (mail) => {
-        mail.attachments.forEach((attachment) => {
-          this.mailsService.fetchAttachment(attachment.id).subscribe({
+        mail.attachments.filter((attachment) => this.isPreviewable(attachment)).forEach((attachment) => {
+          this.mailsService.fetchAttachment(attachment.id, true).subscribe({
             next: (blob) => {
-              attachment.url = URL.createObjectURL(blob);
-              attachment.blob = blob;
+              attachment.previewUrl = URL.createObjectURL(blob);
+              this.previewUrls.add(attachment.previewUrl);
             },
             error: (err) => {
               this.messageService.add({
@@ -95,7 +98,7 @@ export class MailDetails {
     return new Date(dateString).toLocaleString();
   }
 
-  getEmailString(recipients: any[] | undefined): string {
+  getEmailString(recipients: User[] | undefined): string {
     if (!recipients) return '';
     return recipients.map((r) => `${r.firstName} ${r.lastName} (${r.email})`).join(', ');
   }
@@ -128,6 +131,54 @@ export class MailDetails {
         },
       });
     }
+  }
+
+  ngOnDestroy() {
+    this.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  }
+
+  isPreviewable(attachment: Attachment): boolean {
+    return ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
+      attachment.mimeType?.toLowerCase() || '',
+    );
+  }
+
+  protected downloadAttachment(attachment: Attachment) {
+    this.mailsService.fetchAttachment(attachment.id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = attachment.fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      },
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Failed to Download Attachment',
+          detail: err.error?.message || 'An error occurred',
+        });
+      },
+    });
+  }
+
+  replyToMail() {
+    const mail = this.mail();
+    if (!mail) return;
+
+    this.mailsService.createReplyDraft(mail.id).subscribe({
+      next: (replyDraft) => this.router.navigate(['/mails', replyDraft.id, 'edit']),
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Failed to Create Reply',
+          detail: err.error?.message || 'An error occurred',
+        });
+      },
+    });
   }
 
   deleteMail() {

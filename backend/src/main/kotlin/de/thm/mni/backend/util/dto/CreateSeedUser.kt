@@ -5,5 +5,6 @@ data class CreateSeedUser(
     val firstName: String,
     val lastName: String,
     val email: String,
-    val password: String
+    val identityProviderSubject: String? = null,
+    val externalContact: Boolean = false,
 )

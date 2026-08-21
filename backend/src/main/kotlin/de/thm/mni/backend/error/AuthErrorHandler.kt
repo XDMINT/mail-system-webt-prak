@@ -14,9 +14,9 @@ class AuthErrorHandler: AuthenticationEntryPoint {
         response: HttpServletResponse,
         authException: AuthenticationException
     ) {
-        val error = AppError(HttpServletResponse.SC_UNAUTHORIZED, authException.message)
         response.status = HttpServletResponse.SC_UNAUTHORIZED
         response.contentType = "application/json"
-        response.writer.write("""{"status":${error.status},"message":"${error.message}"}""")
+        response.characterEncoding = Charsets.UTF_8.name()
+        response.writer.write("""{"status":401,"message":"Authentication is required"}""")
     }
 }

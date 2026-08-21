@@ -4,15 +4,14 @@ import de.thm.mni.backend.mail.Mail
 import de.thm.mni.backend.mail.MailRepository
 import de.thm.mni.backend.mail.enums.MailStatus
 import de.thm.mni.backend.mail.enums.MailType
-import de.thm.mni.backend.mail_record.MailRecord
-import de.thm.mni.backend.mail_record.MailRecordRepository
+import de.thm.mni.backend.mailrecord.MailRecord
+import de.thm.mni.backend.mailrecord.MailRecordRepository
 import de.thm.mni.backend.user.User
 import de.thm.mni.backend.user.UserRepository
 import de.thm.mni.backend.util.dto.SeedData
 import org.springframework.boot.CommandLineRunner
 import org.springframework.core.io.ClassPathResource
 import org.slf4j.LoggerFactory
-import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.core.type.TypeReference
@@ -24,10 +23,10 @@ class DatabaseInitializer(
     private val userRepository: UserRepository,
     private val mailRepository: MailRepository,
     private val mailRecordRepository: MailRecordRepository,
-    private val passwordEncoder: PasswordEncoder
 ): CommandLineRunner {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    @Suppress("TooGenericExceptionCaught") // Invalid optional seed data must not prevent the application from starting.
     override fun run(vararg args: String) {
         try {
             val resource = ClassPathResource("data.json")
@@ -47,7 +46,8 @@ class DatabaseInitializer(
                             firstName = dto.firstName,
                             lastName = dto.lastName,
                             email = dto.email,
-                            password = passwordEncoder.encode(dto.password).toString()
+                            identityProviderSubject = dto.identityProviderSubject,
+                            externalContact = dto.externalContact,
                         )
                     )
                 }
@@ -73,8 +73,11 @@ class DatabaseInitializer(
                 if(dto.status == MailStatus.SENT) {
                     mail.status = MailStatus.SENT
                 }
+                mail.source = dto.source
+                mail.externalMessageId = dto.externalMessageId
+                mail.externalSenderEmail = dto.externalSenderEmail
                 val createdMail = mailRepository.save(mail)
-                this.createMailRecords(createdMail, dto.toEmails, dto.ccEmails, dto.bccEmails, dto.replyToEmails)
+                this.createMailRecords(createdMail, dto.toEmails, dto.ccEmails, dto.bccEmails)
             }
 
         } catch (e: Exception) {
@@ -87,8 +90,7 @@ class DatabaseInitializer(
         mail: Mail,
         to: List<String>,
         cc: List<String>,
-        bcc: List<String>,
-        replyTo: List<String>)
+        bcc: List<String>)
     {
         to.forEach { addr -> mailRecordRepository.save(MailRecord(
             mail = mail,
@@ -108,10 +110,5 @@ class DatabaseInitializer(
             type = MailType.BCC
         ))}
 
-        replyTo.forEach { addr -> mailRecordRepository.save(MailRecord(
-            mail = mail,
-            user = userRepository.findUserByEmail(addr)!!,
-            type = MailType.REPLY_TO
-        ))}
     }
 }

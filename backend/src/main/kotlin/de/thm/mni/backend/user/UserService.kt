@@ -32,7 +32,7 @@ class UserService(private val userRepository: UserRepository){
         return userRepository.findAllByExternalContactFalse()
     }
 
-    fun updateUser(id: UUID, updatedUser: User): User {
+    fun updateUser(updatedUser: User): User {
         return userRepository.save(updatedUser)
     }
 

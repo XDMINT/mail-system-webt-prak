@@ -16,10 +16,12 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { TextareaModule } from 'primeng/textarea';
 import { FileRemoveEvent, FileSelectEvent, FileUploadModule } from 'primeng/fileupload';
 import { User } from '../../../types/user';
-import { CreateMail, Mail } from '../../../types/mails';
+import { CreateMail, Mail, UpdateMail } from '../../../types/mails';
 import { InputTextModule } from 'primeng/inputtext';
-import { ImageModule } from 'primeng/image';
 import { Attachment } from '../../../types/attachment';
+import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { ErrorResponse } from '../../../types/error';
 
 @Component({
   selector: 'app-mail-form',
@@ -33,7 +35,6 @@ import { Attachment } from '../../../types/attachment';
     FileUploadModule,
     Toast,
     InputTextModule,
-    ImageModule,
     MultiSelectModule,
   ],
   templateUrl: './mail-form.html',
@@ -47,7 +48,7 @@ export class MailForm implements OnInit, OnChanges {
   private router = inject(Router);
 
   protected mailForm = new FormGroup({
-    subject: new FormControl('', [Validators.required, Validators.maxLength(20)]),
+    subject: new FormControl('', [Validators.required, Validators.maxLength(255)]),
     content: new FormControl('', [Validators.required, Validators.maxLength(500)]),
   });
 
@@ -56,18 +57,17 @@ export class MailForm implements OnInit, OnChanges {
   protected selectedToUsers: string[] = [];
   protected selectedCcUsers: string[] = [];
   protected selectedBccUsers: string[] = [];
-  protected selectedReplyToUsers: string[] = [];
 
   // Input values for recipient fields (standalone from reactive form)
   protected toInputValue = '';
   protected ccInputValue = '';
   protected bccInputValue = '';
-  protected replyToInputValue = '';
 
   // temporary input fields for fallback add (signals for proper change detection)
   protected uploadedFiles = signal<File[]>([]);
   protected isLoading = signal(false);
   protected attachments = signal<Attachment[]>([]);
+  protected readonly maxAttachmentFileSize = 5 * 1024 * 1024;
 
   ngOnInit() {
     this.loadUsers();
@@ -106,13 +106,12 @@ export class MailForm implements OnInit, OnChanges {
     this.selectedToUsers = this.mailData.to.map((user) => user.email);
     this.selectedCcUsers = this.mailData.cc.map((user) => user.email);
     this.selectedBccUsers = this.mailData.bcc.map((user) => user.email);
-    this.selectedReplyToUsers = this.mailData.replyTo.map((user) => user.email);
 
     this.attachments.set(this.mailData.attachments);
   }
 
   onFileSelect(event: FileSelectEvent) {
-    this.uploadedFiles.set([...this.uploadedFiles(), ...event.files]);
+    this.uploadedFiles.set([...event.currentFiles]);
   }
 
   onFileRemove(event: FileRemoveEvent) {
@@ -120,7 +119,7 @@ export class MailForm implements OnInit, OnChanges {
   }
 
   onExistingFileRemove(attachment: Attachment) {
-    this.attachments.set(this.attachments().filter((att) => att.url !== attachment.url));
+    this.attachments.set(this.attachments().filter((att) => att.id !== attachment.id));
   }
 
   private recipientsNotEmpty(): boolean {
@@ -153,30 +152,24 @@ export class MailForm implements OnInit, OnChanges {
     return true;
   }
 
-  private buildMailData(): CreateMail | null {
+  private buildMailData(): CreateMail | UpdateMail {
     const subject = this.mailForm.get('subject')?.value || '';
     const content = this.mailForm.get('content')?.value || '';
     // We'll resolve email addresses to user IDs later via ensureAllRecipientsExist
-    return {
+    const mail: CreateMail = {
       subject,
       content,
       toIds: [],
       ccIds: [],
       bccIds: [],
-      replyToIds: [],
     };
+    return this.mailData
+      ? { ...mail, retainedAttachmentIds: this.attachments().map((attachment) => attachment.id) }
+      : mail;
   }
 
   private buildAttachmentData(): File[] {
-    const newAttachments = this.uploadedFiles().map((file) => file);
-    const existingAttachments = this.attachments().map((att) =>
-      this.blobToFile(att.blob!, att.fileName),
-    );
-    return [...newAttachments, ...existingAttachments];
-  }
-
-  private blobToFile(blob: Blob, filename: string): File {
-    return new File([blob], filename, { type: blob.type });
+    return this.uploadedFiles();
   }
 
   // Add email helpers for the input fallback
@@ -224,19 +217,6 @@ export class MailForm implements OnInit, OnChanges {
     this.bccInputValue = '';
   }
 
-  protected addReplyToFromInput() {
-    const v = this.replyToInputValue.trim();
-    if (!v) return;
-    if (!this.isValidEmail(v)) {
-      this.messageService.add({ severity: 'warn', summary: 'Invalid email', detail: `"${v}" is not a valid email address` });
-      return;
-    }
-    if (!this.selectedReplyToUsers.includes(v)) {
-      this.selectedReplyToUsers = [...this.selectedReplyToUsers, v];
-    }
-    this.replyToInputValue = '';
-  }
-
   // Remove recipient methods
   protected removeToUser(email: string) {
     this.selectedToUsers = this.selectedToUsers.filter(e => e !== email);
@@ -250,10 +230,6 @@ export class MailForm implements OnInit, OnChanges {
     this.selectedBccUsers = this.selectedBccUsers.filter(e => e !== email);
   }
 
-  protected removeReplyToUser(email: string) {
-    this.selectedReplyToUsers = this.selectedReplyToUsers.filter(e => e !== email);
-  }
-
   private handleMailSuccess(message: string, navigateTo: string) {
     this.messageService.add({
       severity: 'success',
@@ -265,9 +241,10 @@ export class MailForm implements OnInit, OnChanges {
     this.router.navigate([navigateTo]);
   }
 
-  private handleMailError(error: any, defaultMessage: string) {
+  private handleMailError(error: HttpErrorResponse, defaultMessage: string) {
     this.isLoading.set(false);
-    const errorMessage = error.error?.message || defaultMessage;
+    const errorResponse = error.error as Partial<ErrorResponse> | null;
+    const errorMessage = errorResponse?.message || defaultMessage;
     this.messageService.add({
       severity: 'error',
       summary: 'Error',
@@ -275,67 +252,58 @@ export class MailForm implements OnInit, OnChanges {
     });
   }
 
-  onSubmit() {
+  async onSubmit() {
     if (!this.validateForm()) {
       return;
     }
 
     const mailData = this.buildMailData();
-    if (mailData === null) return; // mapping error already shown
     const attachments = this.buildAttachmentData();
     this.isLoading.set(true);
-    // Ensure external emails exist as users (create if necessary)
-    this.ensureAllRecipientsExist(() => this.selectedToUsers).then((toIds) => {
-      if (!toIds) { this.isLoading.set(false); return; }
-      this.ensureAllRecipientsExist(() => this.selectedCcUsers).then((ccIds) => {
-        if (!ccIds) { this.isLoading.set(false); return; }
-        this.ensureAllRecipientsExist(() => this.selectedBccUsers).then((bccIds) => {
-          if (!bccIds) { this.isLoading.set(false); return; }
-          this.ensureAllRecipientsExist(() => this.selectedReplyToUsers).then((replyToIds) => {
-            if (!replyToIds) { this.isLoading.set(false); return; }
-
-            // replace mailData ids with ensured ids
-            mailData.toIds = toIds;
-            mailData.ccIds = ccIds;
-            mailData.bccIds = bccIds;
-            mailData.replyToIds = replyToIds;
-
-            if (this.mailData) {
-              this.mailsService.updateMails(this.mailData.id, mailData, attachments).subscribe({
-                next: () => this.handleMailSuccess('Mail updated successfully', '/mails/drafts'),
-                error: (error) => this.handleMailError(error, 'Failed to update mail'),
-              });
-            } else {
-              this.mailsService.createAndSendMail(mailData, attachments).subscribe({
-                next: () => this.handleMailSuccess('Mail sent successfully', '/mails/sent'),
-                error: (error) => this.handleMailError(error, 'Failed to send mail'),
-              });
-            }
-
-          });
-        });
-      });
-    });
+    if (!(await this.resolveRecipientIds(mailData))) {
+      this.isLoading.set(false);
+      return;
+    }
 
     if (this.mailData) {
-      return; // already handled in ensure chain
+      this.mailsService.updateMails(this.mailData.id, mailData as UpdateMail, attachments).subscribe({
+        next: (updatedMail) => {
+          this.mailsService.sendMail(updatedMail.id).subscribe({
+            next: () => this.handleMailSuccess('Mail sent successfully', '/mails/sent'),
+            error: (error) => this.handleMailError(error, 'Failed to send mail'),
+          });
+        },
+        error: (error) => this.handleMailError(error, 'Failed to update mail'),
+      });
+      return;
     }
+
+    this.mailsService.createAndSendMail(mailData, attachments).subscribe({
+      next: () => this.handleMailSuccess('Mail sent successfully', '/mails/sent'),
+      error: (error) => this.handleMailError(error, 'Failed to send mail'),
+    });
   }
 
-  onSaveDraft() {
+  async onSaveDraft() {
     if (!this.validateForm()) {
       return;
     }
 
     const mailData = this.buildMailData();
-    if (mailData === null) return; // mapping error already shown to user
     const attachments = this.buildAttachmentData();
     this.isLoading.set(true);
+    if (!(await this.resolveRecipientIds(mailData))) {
+      this.isLoading.set(false);
+      return;
+    }
 
-    this.mailsService.createDraft(mailData, attachments).subscribe({
-      next: () => this.handleMailSuccess('Mail saved as draft', '/mails/drafts'),
-      error: (error) => this.handleMailError(error, 'Failed to save draft'),
-    });
+    const request = this.mailData
+      ? this.mailsService.updateMails(this.mailData.id, mailData as UpdateMail, attachments)
+      : this.mailsService.createDraft(mailData, attachments);
+    request.subscribe({
+        next: () => this.handleMailSuccess('Mail saved as draft', '/mails/drafts'),
+        error: (error) => this.handleMailError(error, 'Failed to save draft'),
+      });
   }
 
   resetForm() {
@@ -343,12 +311,11 @@ export class MailForm implements OnInit, OnChanges {
     this.selectedToUsers = [];
     this.selectedCcUsers = [];
     this.selectedBccUsers = [];
-    this.selectedReplyToUsers = [];
     this.toInputValue = '';
     this.ccInputValue = '';
     this.bccInputValue = '';
-    this.replyToInputValue = '';
     this.uploadedFiles.set([]);
+    this.attachments.set([]);
   }
 
   // Ensure that for each entered email an existing user ID exists; create users if necessary.
@@ -368,7 +335,7 @@ export class MailForm implements OnInit, OnChanges {
 
       // create via API
       try {
-        const resp = await this.mailsService.ensureUser(trimmed).toPromise();
+        const resp = await firstValueFrom(this.mailsService.ensureUser(trimmed));
         if (resp && resp.id) {
           ids.push(resp.id);
           // update local users cache
@@ -377,12 +344,26 @@ export class MailForm implements OnInit, OnChanges {
           this.messageService.add({ severity: 'error', summary: 'Failed', detail: `Could not ensure user for ${trimmed}` });
           return null;
         }
-      } catch (ex) {
+      } catch {
         this.messageService.add({ severity: 'error', summary: 'Failed', detail: `Could not ensure user for ${trimmed}` });
         return null;
       }
     }
 
     return ids;
+  }
+
+  private async resolveRecipientIds(mailData: CreateMail): Promise<boolean> {
+    const [toIds, ccIds, bccIds] = await Promise.all([
+      this.ensureAllRecipientsExist(() => this.selectedToUsers),
+      this.ensureAllRecipientsExist(() => this.selectedCcUsers),
+      this.ensureAllRecipientsExist(() => this.selectedBccUsers),
+    ]);
+
+    if (!toIds || !ccIds || !bccIds) return false;
+    mailData.toIds = toIds;
+    mailData.ccIds = ccIds;
+    mailData.bccIds = bccIds;
+    return true;
   }
 }
